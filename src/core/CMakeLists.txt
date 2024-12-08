@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(coreSw)
+project(SwCore)
 
 # Utiliser le standard C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -26,24 +26,35 @@ set(HEADER_FILES
     IODescriptor.h
     SwProcess.h
     SwStyle.h
+    SwDateTime.h
+    SwString.h
+    SwCrypto.h
+    SwList.h
+    SwFile.h
+    SwDir.h
+    SwFileInfo.h
     SwPainter.h
     StyleSheet.h
     Widget.h
     PushButton.h
     Label.h
     LineEdit.h
+    SwJsonValue.h
+    SwJsonArray.h
+    SwJsonObject.h
+    SwJsonDocument.h
     MainWindow.h
     # Ajouter tous les autres .h ici
 )
 
 # Créer la bibliothèque statique
-add_library(coreSw STATIC ${SOURCE_FILES} ${HEADER_FILES})
+add_library(SwCore STATIC ${SOURCE_FILES} ${HEADER_FILES})
 
 # Définir les options d'inclusion
-target_include_directories(coreSw PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(SwCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Lier la bibliothèque GDI+
-target_link_libraries(coreSw PRIVATE gdiplus)
+target_link_libraries(SwCore PRIVATE gdiplus winmm bcrypt)
 
 # Si le projet est configuré pour le sous-système Windows
-target_link_options(coreSw PRIVATE "/SUBSYSTEM:WINDOWS" "/ENTRY:mainCRTStartup")
+target_link_options(SwCore PRIVATE "/SUBSYSTEM:WINDOWS" "/ENTRY:mainCRTStartup")

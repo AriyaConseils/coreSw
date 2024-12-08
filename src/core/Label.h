@@ -13,7 +13,7 @@ class Label : public Widget {
 
     SW_OBJECT(Label, Widget)
 
-    CUSTOM_PROPERTY(std::wstring, Text, L"Label") {
+    CUSTOM_PROPERTY(std::string, Text, "Label") {
         update();
     }
 
@@ -22,7 +22,7 @@ class Label : public Widget {
     }
 
 public:
-    Label(const std::wstring& text, Widget* parent = nullptr)
+    Label(const std::string& text, Widget* parent = nullptr)
         : Widget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut

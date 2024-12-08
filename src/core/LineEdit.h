@@ -13,16 +13,16 @@ class LineEdit : public Widget {
 
     SW_OBJECT(LineEdit, Widget)
 
-    CUSTOM_PROPERTY(std::wstring, Text, L"") {
+    CUSTOM_PROPERTY(std::string, Text, "") {
         cursorPos = getText().size();
         selectionStart = selectionEnd = cursorPos;
         setDisplayText(getText());
     }
 
 
-    CUSTOM_PROPERTY(std::wstring, DisplayText, L"") {
+    CUSTOM_PROPERTY(std::string, DisplayText, "") {
         if (getEchoMode() == EchoModeEnum::PasswordEcho) {
-            std::wstring maskedText(m_DisplayText.size(), 0x25CF); 
+            std::string maskedText(m_DisplayText.size(), 0x25CF);
             m_DisplayText = maskedText;
         }
         update();
@@ -31,7 +31,7 @@ class LineEdit : public Widget {
 
     CUSTOM_PROPERTY(EchoModeEnum, EchoMode, EchoModeEnum::NormalEcho) {
         if (getEchoMode() == EchoModeEnum::PasswordEcho) {
-            std::wstring maskedText(m_DisplayText.size(), 0x25CF);
+            std::string maskedText(m_DisplayText.size(), 0x25CF);
             m_DisplayText = maskedText;
         }
         else if (getEchoMode() == EchoModeEnum::NoEcho) {
@@ -41,7 +41,7 @@ class LineEdit : public Widget {
 
         
 
-    CUSTOM_PROPERTY(std::wstring, Placeholder, L"") {
+    CUSTOM_PROPERTY(std::string, Placeholder, "") {
         update();
     }
 
@@ -54,14 +54,14 @@ class LineEdit : public Widget {
     }
 
 public:
-    LineEdit(const std::wstring& placeholderText = L"", Widget* parent = nullptr)
+    LineEdit(const std::string& placeholderText = "", Widget* parent = nullptr)
         : Widget(parent), cursorPos(0),
           selectionStart(0), selectionEnd(0), isSelecting(false) {
         width = 300;
         height = 30;
         setCursor(CursorType::IBeam);
         setPlaceholder(placeholderText);
-        connect(this, SIGNAL(TextChanged), std::function<void(std::wstring)>([&](std::wstring text) {
+        connect(this, SIGNAL(TextChanged), std::function<void(std::string)>([&](std::string text) {
             setDisplayText(text);
         }));
         this->setFocusPolicy(FocusPolicyEnum::Strong);
@@ -104,7 +104,7 @@ public:
         width = 300;
         height = 30;
         setCursor(CursorType::IBeam);
-        connect(this, SIGNAL(TextChanged), std::function<void(std::wstring)>([&](std::wstring text) {
+        connect(this, SIGNAL(TextChanged), std::function<void(std::string)>([&](std::string text) {
             setDisplayText(text);
         }));  
 
@@ -160,7 +160,7 @@ public:
         SetBkMode(hdc, TRANSPARENT);
 
         // Déterminer le texte à afficher
-        const std::wstring& textToDraw = (getDisplayText().empty() && !getFocus()) ? getPlaceholder() : getDisplayText();
+        const std::string& textToDraw = (getDisplayText().empty() && !getFocus()) ? getPlaceholder() : getDisplayText();
 
         // Dessiner le texte avec gestion de la sélection
         size_t drawPos = 0;
@@ -204,7 +204,7 @@ public:
         // Dessiner le curseur clignotant
         if (getFocus() && GetTickCount() % 1000 < 500 && selectionStart == selectionEnd) {
             SIZE textSize;
-			GetTextExtentPoint32W(hdc, textToDraw.substr(0, cursorPos).c_str(), static_cast<int>(cursorPos), &textSize);
+            GetTextExtentPoint32A(hdc, textToDraw.substr(0, cursorPos).c_str(), static_cast<int>(cursorPos), &textSize);
             int cursorX = x + 5 + textSize.cx;
 
             MoveToEx(hdc, cursorX, y + 5, nullptr);
@@ -454,7 +454,7 @@ private:
 
 		size_t start = (std::min)(selectionStart, selectionEnd);
 		size_t end = (std::max)(selectionStart, selectionEnd);
-        std::wstring selectedText = (getEchoMode() == EchoModeEnum::NormalEcho)? m_Text.substr(start, end - start) : L"Better luck next time, mate!";
+        std::string selectedText = (getEchoMode() == EchoModeEnum::NormalEcho)? m_Text.substr(start, end - start) : "Better luck next time, mate!";
 
         // Ouvrir le presse-papiers
         if (OpenClipboard(hwnd)) {
@@ -473,12 +473,12 @@ private:
         if (OpenClipboard(hwnd)) {
             HANDLE hData = GetClipboardData(CF_UNICODETEXT);
             if (hData != NULL) {
-                wchar_t* clipboardText = static_cast<wchar_t*>(GlobalLock(hData));
-                if (clipboardText != NULL) {
+                std::string clipboardText = wcharToChar(static_cast<wchar_t*>(GlobalLock(hData)));
+                if (clipboardText != "") {
                     if (selectionStart != selectionEnd) {
                         deleteSelection();
                     }
-                    std::wstring clipboardStr = clipboardText;
+                    std::string clipboardStr = clipboardText;
                     m_Text.insert(cursorPos, clipboardStr);
                     cursorPos += clipboardStr.length();
                     selectionStart = selectionEnd = cursorPos;
@@ -487,5 +487,15 @@ private:
             }
             CloseClipboard();
         }
+    }
+
+    std::string wcharToChar(const wchar_t* wideString) {
+        if (!wideString) return "";
+
+        // Taille nécessaire pour le buffer de char
+        int sizeNeeded = WideCharToMultiByte(CP_ACP, 0, wideString, -1, nullptr, 0, nullptr, nullptr);
+        std::string result(sizeNeeded, '\0'); // Réserve la taille nécessaire
+        WideCharToMultiByte(CP_ACP, 0, wideString, -1, &result[0], sizeNeeded, nullptr, nullptr);
+        return result;
     }
 };

@@ -12,7 +12,7 @@ class PushButton : public Widget {
 
     SW_OBJECT(PushButton, Widget)
 
-    CUSTOM_PROPERTY(std::wstring, Text, L"PushButton") {
+    CUSTOM_PROPERTY(std::string, Text, "PushButton") {
         update();
     }
     CUSTOM_PROPERTY(bool, Pressed, false) {
@@ -22,7 +22,7 @@ class PushButton : public Widget {
         update();
     }
 public:
-    PushButton(const std::wstring& text, Widget* parent = nullptr)
+    PushButton(const std::string& text, Widget* parent = nullptr)
         : Widget(parent){
         width = 150;
         height = 50;

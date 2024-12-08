@@ -160,6 +160,9 @@ void CoreApplication::quit() {
 }
 
 CoreApplication* CoreApplication::instance() {
+    if (!m_mainApp) {
+        new CoreApplication();
+    }
     return m_mainApp;
 }
 

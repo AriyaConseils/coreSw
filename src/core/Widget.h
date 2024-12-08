@@ -130,7 +130,7 @@ class Widget : public Object {
 
     PROPERTY(FocusPolicyEnum, FocusPolicy, FocusPolicyEnum::Accept)
 
-    PROPERTY(std::wstring, ToolTips, L"")
+    PROPERTY(std::string, ToolTips, "")
 
     CUSTOM_PROPERTY(bool, Enable, true) {
         update();

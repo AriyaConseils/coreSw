@@ -186,9 +186,9 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
 
         painter->setTextColor(sheet->parseColor(textStyle));
 
-        std::wstring text;
+        std::string text;
         if (wdgt->propertyExist("Text")) { 
-            text = wdgt->property("Text").get<std::wstring>();
+            text = wdgt->property("Text").get<std::string>();
         }
         DrawTextFormats alignment;
         if (wdgt->propertyExist("Alignment")) {alignment = wdgt->property("Alignment").get<DrawTextFormats>();}

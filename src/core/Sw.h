@@ -17,8 +17,13 @@ struct SwRect {
     int width, height;
 };
 
-  
 
+enum class EntryType {
+    Files = 0x1,        // Inclure les fichiers
+    Directories = 0x2,  // Inclure les répertoires
+    AllEntries = Files | Directories // Tout inclure
+};
+SW_DECLARE_FLAGS(EntryTypes, EntryType)
 
 
 

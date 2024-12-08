@@ -5,6 +5,7 @@
 #include "CoreApplication.h"
 #include <functional>
 #include <string>
+#include <windows.h>
 #include "Timer.h"
 
 class IODevice : public Object {
@@ -39,6 +40,40 @@ public:
         return false;
     }
 
+    bool exists() const {
+        // Convertir le chemin en Unicode (UTF-16) pour la compatibilité avec les fonctions Windows
+        std::wstring widePath = std::wstring(filePath_.begin(), filePath_.end());
+
+        // Vérifier les attributs du fichier
+        DWORD attributes = GetFileAttributesW(widePath.c_str());
+
+        // Retourner false si les attributs sont INVALID_FILE_ATTRIBUTES
+        return (attributes != INVALID_FILE_ATTRIBUTES);
+    }
+
+    static bool exists(const std::string& path) {
+        // Convertir le chemin en Unicode
+        std::wstring widePath(path.begin(), path.end());
+
+        // Vérifier les attributs du fichier
+        DWORD attributes = GetFileAttributesW(widePath.c_str());
+
+        // Retourner true si le fichier ou le répertoire existe
+        return (attributes != INVALID_FILE_ATTRIBUTES);
+    }
+
+    // Démarrer la surveillance
+    void startMonitoring() {
+        monitoring = true;
+        updateLastWriteTime();
+        m_timerDercriptor->start();
+    }
+
+    // Arrêter la surveillance
+    void stopMonitoring() {
+        monitoring = false;
+        m_timerDercriptor->stop();
+    }
 protected:
     Timer* m_timerDercriptor;
    
@@ -64,6 +99,10 @@ protected:
 
 private slots:
     void onTimerDescriptor() {
+        if (monitoring) {
+            checkFileChanges();
+        }
+
         bool readyToRead = false, readyToWrite = false;
 
         for (auto descriptor : descriptors) {
@@ -78,7 +117,42 @@ private slots:
         }
     }
 
+protected:
+    std::string filePath_;
+    FILETIME lastWriteTime_;
+
+    void checkFileChanges() {
+        if (filePath_.empty() || !exists()) {
+            return;
+        }
+
+        WIN32_FILE_ATTRIBUTE_DATA fileInfo;
+        std::wstring widePath = std::wstring(filePath_.begin(), filePath_.end());
+
+        if (GetFileAttributesExW(widePath.c_str(), GetFileExInfoStandard, &fileInfo)) {
+            // Vérifier si la dernière écriture a changé
+            if (CompareFileTime(&fileInfo.ftLastWriteTime, &lastWriteTime_) != 0) {
+                lastWriteTime_ = fileInfo.ftLastWriteTime;
+                emitSignal("fileChanged", filePath_);
+            }
+        }
+    }
+
+    // Mettre à jour l'horodatage de dernière modification
+    void updateLastWriteTime() {
+        if (exists()) {
+            WIN32_FILE_ATTRIBUTE_DATA fileInfo;
+            std::wstring widePath = std::wstring(filePath_.begin(), filePath_.end());
+
+            // Récupérer les attributs et les informations du fichier
+            if (GetFileAttributesExW(widePath.c_str(), GetFileExInfoStandard, &fileInfo)) {
+                lastWriteTime_ = fileInfo.ftLastWriteTime;
+            }
+        }
+    }
+
 private:
     std::vector<IODescriptor*> descriptors;
     bool monitoring;
+
 };

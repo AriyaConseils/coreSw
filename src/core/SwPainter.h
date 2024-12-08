@@ -3,6 +3,8 @@
 #include <windows.h>
 #include <string>
 #include <vector>
+#include <cmath>
+
 
 class SwPainter {
 public:
@@ -78,15 +80,15 @@ public:
     }
 
     // Dessiner du texte avec alignement personnalisé
-	void drawText(const std::wstring& text, RECT& rect, int alignmentFlags = DT_CENTER | DT_VCENTER | DT_SINGLELINE) {
+	void drawText(const std::string& text, RECT& rect, int alignmentFlags = DT_CENTER | DT_VCENTER | DT_SINGLELINE) {
 		SetBkMode(hdc, TRANSPARENT);  // Fond transparent
-		DrawTextW(hdc, text.c_str(), -1, &rect, alignmentFlags);  // Utilise DrawTextW pour Unicode
+		DrawTextA(hdc, text.c_str(), -1, &rect, alignmentFlags);  // Utilise DrawTextW pour Unicode
 	}
 
 
     // Charger une police de caractères
-	HFONT loadFont(const std::wstring& fontName, int size, bool bold = false, bool italic = false) {
-		return CreateFontW(size, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL, italic, 0, 0,
+	HFONT loadFont(const std::string& fontName, int size, bool bold = false, bool italic = false) {
+		return CreateFontA(size, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL, italic, 0, 0,
 			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
 			DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, fontName.c_str());
 	}
@@ -125,17 +127,16 @@ public:
 
 
     // Appliquer une rotation (en radians)
-	void rotate(float angle) {
-		XFORM xForm;
-		xForm.eM11 = static_cast<FLOAT>(cos(angle));
-		xForm.eM12 = static_cast<FLOAT>(sin(angle));
-		xForm.eM21 = static_cast<FLOAT>(-sin(angle));
-		xForm.eM22 = static_cast<FLOAT>(cos(angle));
-		xForm.eDx = 0;
-		xForm.eDy = 0;
-		SetWorldTransform(hdc, &xForm);
-	}
-
+    void rotate(float angle) {
+        XFORM xForm;
+        xForm.eM11 = static_cast<FLOAT>(std::cos(angle));
+        xForm.eM12 = static_cast<FLOAT>(std::sin(angle));
+        xForm.eM21 = static_cast<FLOAT>(-std::sin(angle));
+        xForm.eM22 = static_cast<FLOAT>(std::cos(angle));
+        xForm.eDx = 0;
+        xForm.eDy = 0;
+        SetWorldTransform(hdc, &xForm);
+    }
     // Appliquer une mise à l'échelle
     void scale(float sx, float sy) {
         XFORM xForm;

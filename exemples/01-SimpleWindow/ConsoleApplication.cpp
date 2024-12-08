@@ -10,6 +10,7 @@
 #include "MainWindow.h"
 #include "LineEdit.h"
 #include "Label.h"
+#include "SwString.h"
 
 int main() {
 	bool wait = true;
@@ -52,34 +53,27 @@ int main() {
 
         // Création des labels
         Label* label = new Label(&mainWindow);
-        label->setText(L"Label " + std::to_wstring(i) + L":");
+        label->setText(SwString("Label %1:").arg(SwString::number(i)));
         label->move(xPos, yPos);
         label->resize(labelWidth, labelHeight);
 
         // Création des LineEdit
-        LineEdit* lineEdit = new LineEdit(L"Entrez votre message ici...", &mainWindow);
+        LineEdit* lineEdit = new LineEdit("Entrez votre message ici...", &mainWindow);
         lineEdit->move(xPos, yPos + labelHeight + 10);  // Positionner sous le label
         lineEdit->resize(lineEditWidth, lineEditHeight);
         lineEdit->setEchoMode(EchoModeEnum::NormalEcho);
 
         // Création des boutons
-        PushButton* button = new PushButton(L"Button " + std::to_wstring(i), &mainWindow);
+        PushButton* button = new PushButton(SwString("Button %1").arg(SwString::number(i)), &mainWindow);
         button->setCursor(CursorType::Hand);
-        button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);  // À droite du LineEdit
+        button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);
         button->resize(buttonWidth, buttonHeight);
 
 
-        EventLoop myloop;
-        //Object::connect(lineEdit, SIGNAL(Text), &myloop, &EventLoop::quit);
-        Object::connect(lineEdit, SIGNAL(Text), std::function<void(std::wstring)>([&](std::wstring texte) {
-            myloop.quit();
-            }));
-
 
         Object::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
-            std::cout << "*********Loop Enter**********" << std::endl;
-            myloop.exec();
-            std::cout << "*********Loop Quit**********" << std::endl;
+            std::cout << "*********Button Clicked**********" << std::endl;
+
         }));
     }
 

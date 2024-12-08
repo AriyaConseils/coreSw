@@ -259,11 +259,11 @@ public:
     }
 
     virtual void addChildEvent(Object* child) {
-        std::cout << "Enfant ajouté: " << child->getObjectName() << std::endl;
+        // std::cout << "Enfant ajouté: " << child->getObjectName() << std::endl;
     }
 
     virtual void removedChildEvent(Object* child) {
-        std::cout << "Enfant supprimé: " << child->getObjectName() << std::endl;
+        // std::cout << "Enfant supprimé: " << child->getObjectName() << std::endl;
     }
 
     template<typename Sender, typename Receiver, typename... Args>
