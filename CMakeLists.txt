@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ConsoleApplication)
+project(SwCore)
 
 # Utiliser le standard C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -10,3 +10,4 @@ add_subdirectory(src/core)
 
 # Ajouter tous les exemples dans le dossier exemples
 add_subdirectory(exemples/01-SimpleWindow)
+add_subdirectory(exemples/02-CoreApplication)

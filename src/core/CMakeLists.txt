@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Définir les fichiers sources
 set(SOURCE_FILES
     CoreApplication.cpp
-    SwAny.cpp
+
     SwStyle.cpp
 )
 

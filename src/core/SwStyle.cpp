@@ -1,6 +1,6 @@
 #include "SwStyle.h"
 #include "Widget.h"
-
+#include "SwString.h"
 
 
 
@@ -64,7 +64,7 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
     }
 
     // Récupérer la hiérarchie des classes pour le widget
-    std::vector<std::string> hierarchy = wdgt->classHierarchy();
+    std::vector<SwString> hierarchy = wdgt->classHierarchy();
 
     // Obtenir le style via styleSheet
     StyleSheet* sheet = wdgt->getToolSheet(); // On suppose que Widget a une méthode getToolSheet()
@@ -73,34 +73,34 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
     HBRUSH brush = nullptr;
     HPEN pen = nullptr;
     COLORREF textColor = RGB(0, 0, 0);
-    std::string borderColor, bgColor, textStyle;
+    SwString borderColor, bgColor, textStyle;
     int borderWidth = 1; // Par défaut, on met une bordure de 1 pixel
 
     // Appliquer les styles spécifiques trouvés dans la hiérarchie
     for (int i = hierarchy.size() - 1; i >= 0; --i) {
-        const std::string& className = hierarchy[i];
+        const SwString& className = hierarchy[i];
 
         // Récupérer la propriété CSS "background-color"
-        std::string tempBgColor = sheet->getStyleProperty(className, "background-color");
-        if (!tempBgColor.empty()) {
+        SwString tempBgColor = sheet->getStyleProperty(className, "background-color");
+        if (!tempBgColor.isEmpty()) {
             bgColor = tempBgColor;
         }
 
         // Récupérer la propriété CSS "border-color"
-        std::string tempBorderColor = sheet->getStyleProperty(className, "border-color");
-        if (!tempBorderColor.empty()) {
+        SwString tempBorderColor = sheet->getStyleProperty(className, "border-color");
+        if (!tempBorderColor.isEmpty()) {
             borderColor = tempBorderColor;
         }
 
         // Récupérer la propriété CSS "border-width"
-        std::string tempBorderWidth = sheet->getStyleProperty(className, "border-width");
-        if (!tempBorderWidth.empty()) {
+        SwString tempBorderWidth = sheet->getStyleProperty(className, "border-width");
+        if (!tempBorderWidth.isEmpty()) {
             borderWidth = std::stoi(tempBorderWidth);  // Convertir en entier
         }
 
         // Récupérer la propriété CSS "color" (couleur du texte)
-        std::string tempTextColor = sheet->getStyleProperty(className, "color");
-        if (!tempTextColor.empty()) {
+        SwString tempTextColor = sheet->getStyleProperty(className, "color");
+        if (!tempTextColor.isEmpty()) {
             textStyle = tempTextColor;
         }
     }
@@ -113,7 +113,7 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
         brush = CreateSolidBrush(RGB(220, 220, 220)); // Couleur plus claire si survolé
     }
     else {
-        if (!bgColor.empty()) {
+        if (!bgColor.isEmpty()) {
             brush = CreateSolidBrush(sheet->parseColor(bgColor));  // Convertir la couleur CSS en COLORREF
         }
     }
@@ -124,7 +124,7 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
         pen = CreatePen(PS_SOLID, borderWidth, sheet->parseColor(borderColor));  // Créer la bordure avec la couleur et l'épaisseur
     }
 
-    if (!textStyle.empty()) {
+    if (!textStyle.isEmpty()) {
         textColor = sheet->parseColor(textStyle);  // Convertir la couleur CSS en COLORREF
     }
 
@@ -157,8 +157,8 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
     // Gestion des coins arrondis pour les boutons ou les boîtes (par exemple)
     int cornerRadius = 0;
     if (style == WidgetStyle::PushButtonStyle || style == WidgetStyle::ToolButtonStyle) {
-        std::string borderRadius = sheet->getStyleProperty("border-radius", "border-radius");
-        if (!borderRadius.empty()) {
+        SwString borderRadius = sheet->getStyleProperty("border-radius", "border-radius");
+        if (!borderRadius.isEmpty()) {
             cornerRadius = std::stoi(borderRadius); // Convertir en int
         }
         else {
@@ -186,9 +186,9 @@ void SwStyle::drawControl(WidgetStyle style, const RECT* rect, SwPainter* painte
 
         painter->setTextColor(sheet->parseColor(textStyle));
 
-        std::string text;
-        if (wdgt->propertyExist("Text")) { 
-            text = wdgt->property("Text").get<std::string>();
+        SwString text;
+        if (wdgt->propertyExist("Text")) {
+            text = wdgt->property("Text").get<SwString>();
         }
         DrawTextFormats alignment;
         if (wdgt->propertyExist("Alignment")) {alignment = wdgt->property("Alignment").get<DrawTextFormats>();}

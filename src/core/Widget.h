@@ -7,6 +7,7 @@
 #include "SwFont.h"
 #include "SwStyle.h"
 #include "StyleSheet.h"
+#include "SwString.h"
 #include "Sw.h"
 
 class SwStyle;
@@ -130,7 +131,7 @@ class Widget : public Object {
 
     PROPERTY(FocusPolicyEnum, FocusPolicy, FocusPolicyEnum::Accept)
 
-    PROPERTY(std::string, ToolTips, "")
+    PROPERTY(SwString, ToolTips, "")
 
     CUSTOM_PROPERTY(bool, Enable, true) {
         update();
@@ -185,7 +186,7 @@ class Widget : public Object {
         update();
     }
 
-    CUSTOM_PROPERTY(std::string, StyleSheet, "") {
+    CUSTOM_PROPERTY(SwString, StyleSheet, "") {
         m_ComplexSheet.parseStyleSheet(m_StyleSheet);
         update();
     }

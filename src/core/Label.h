@@ -7,13 +7,13 @@
 
 #include "Sw.h"
 #include "SwFont.h"
-
+#include "SwString.h"
 
 class Label : public Widget {
 
     SW_OBJECT(Label, Widget)
 
-    CUSTOM_PROPERTY(std::string, Text, "Label") {
+    CUSTOM_PROPERTY(SwString, Text, "Label") {
         update();
     }
 
@@ -22,7 +22,7 @@ class Label : public Widget {
     }
 
 public:
-    Label(const std::string& text, Widget* parent = nullptr)
+    Label(const SwString& text, Widget* parent = nullptr)
         : Widget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut
@@ -30,7 +30,7 @@ public:
         REGISTER_PROPERTY(Alignment);
 
         // Définition d'un style CSS pour le Label
-        std::string css = R"(
+        SwString css = R"(
             Label {
                 background-color: #FFFFFF;  /* Blanc */
                 color: #000000;             /* Noir */
@@ -51,7 +51,7 @@ public:
         REGISTER_PROPERTY(Text);
 
         // Définition d'un style CSS pour le Label
-        std::string css = R"(
+        SwString css = R"(
             Label {
                 background-color: rgb(100, 149, 237);  /* Blanc */
                 color: #000000;             /* Noir */

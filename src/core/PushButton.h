@@ -12,7 +12,7 @@ class PushButton : public Widget {
 
     SW_OBJECT(PushButton, Widget)
 
-    CUSTOM_PROPERTY(std::string, Text, "PushButton") {
+    CUSTOM_PROPERTY(SwString, Text, "PushButton") {
         update();
     }
     CUSTOM_PROPERTY(bool, Pressed, false) {
@@ -22,7 +22,7 @@ class PushButton : public Widget {
         update();
     }
 public:
-    PushButton(const std::string& text, Widget* parent = nullptr)
+    PushButton(const SwString& text, Widget* parent = nullptr)
         : Widget(parent){
         width = 150;
         height = 50;
@@ -32,7 +32,7 @@ public:
 
         setText(text);
 
-        std::string css = R"(
+        SwString css = R"(
             PushButton {
                 background-color: #4CAF50;  /* Vert */
                 border-color: #565456;      /* Vert foncé */

@@ -82,20 +82,21 @@ protected: \
 
 
 // Macro SW_OBJECT pour générer className() et classHierarchy()
-#define SW_OBJECT(DerivedClass, BaseClass)                    \
-public:                                                       \
-    virtual std::string className() const override{                           \
-        std::string fullName = typeid(DerivedClass).name();   \
-        if (fullName.find(' ') != std::string::npos) {        \
-            return fullName.substr(fullName.find(' ') + 1);   \
-        }                                                     \
-        return fullName;                                      \
-    }                                                         \
-    virtual std::vector<std::string> classHierarchy() const override {         \
-        std::vector<std::string> hierarchy = BaseClass::classHierarchy(); \
-        hierarchy.insert(hierarchy.begin(), DerivedClass::className());   \
-        return hierarchy;                                     \
-    }
+#define SW_OBJECT(DerivedClass, BaseClass)                              \
+public:                                                                 \
+    virtual SwString className() const override {                      \
+        SwString fullName = typeid(DerivedClass).name();               \
+        int spaceIndex = fullName.indexOf(' ');                        \
+        if (spaceIndex != -1) {                                        \
+            return fullName.mid(spaceIndex + 1);                       \
+    }                                                              \
+        return fullName;                                               \
+}                                                                  \
+    virtual std::vector<SwString> classHierarchy() const override {    \
+        std::vector<SwString> hierarchy = BaseClass::classHierarchy(); \
+        hierarchy.insert(hierarchy.begin(), DerivedClass::className());\
+        return hierarchy;                                              \
+}
 
 
 
@@ -157,7 +158,7 @@ private:
 };
 
 class Object {
-    PROPERTY(std::string, ObjectName, "")
+    PROPERTY(SwString, ObjectName, "")
 
 public:
     Object(Object* parent = nullptr) :
@@ -185,16 +186,18 @@ public:
         return dynamic_cast<const Base*>(obj) != nullptr;
     }
 
-    virtual std::string className() const {
-        std::string fullName = typeid(Object).name();
-        if (fullName.find(' ') != std::string::npos) {
-            return fullName.substr(fullName.find(' ') + 1);
+    virtual SwString className() const {
+        SwString fullName = typeid(Object).name();
+        int spaceIndex = fullName.indexOf(' ');
+        if (spaceIndex != -1) {
+            return fullName.mid(spaceIndex + 1);
         }
         return fullName;
     }
 
+
     // Retourne la hiérarchie d'héritage de l'objet sous forme de vecteur
-    virtual std::vector<std::string> classHierarchy() const {
+    virtual std::vector<SwString> classHierarchy() const {
         return { Object::className() };
     }
 
@@ -267,20 +270,20 @@ public:
     }
 
     template<typename Sender, typename Receiver, typename... Args>
-    static void connect(Sender* sender, const std::string& signalName, Receiver* receiver, void (Receiver::* slot)(Args...), ConnectionType type = DirectConnection) {
+    static void connect(Sender* sender, const SwString& signalName, Receiver* receiver, void (Receiver::* slot)(Args...), ConnectionType type = DirectConnection) {
         ISlot<Receiver, Args...>* newSlot = new SlotMember<Receiver, Args...>(receiver, slot);
         sender->addConnection(signalName, newSlot, type);
     }
 
     template<typename Sender, typename... Args>
-    static void connect(Sender* sender, const std::string& signalName, std::function<void(Args...)> func, ConnectionType type = DirectConnection) {
+    static void connect(Sender* sender, const SwString& signalName, std::function<void(Args...)> func, ConnectionType type = DirectConnection) {
         ISlot<void, Args...>* newSlot = new SlotFunction<Args...>(func);
         sender->addConnection(signalName, newSlot, type);
     }
 
     // Ajouter une connexion avec type
     template<typename... Args>
-    void addConnection(const std::string& signalName, ISlot<Args...>* slot, ConnectionType type) {
+    void addConnection(const SwString& signalName, ISlot<Args...>* slot, ConnectionType type) {
         if (connections.find(signalName) == connections.end()) {
             connections[signalName] = std::vector<std::pair<void*, ConnectionType>>();
         }
@@ -288,7 +291,7 @@ public:
     }
 
     template<typename... Args>
-    void emitSignal(const std::string& signalName, Args... args) {
+    void emitSignal(const SwString& signalName, Args... args) {
         if (connections.size() > 0 && connections.find(signalName) != connections.end()) {
             for (auto& connection : connections[signalName]) {
                 auto slotPtr = connection.first;
@@ -354,7 +357,7 @@ public:
     }
 
 
-    void setProperty(const std::string& propertyName, SwAny value) {
+    void setProperty(const SwString& propertyName, SwAny value) {
         if (!ArePropertiesInitialised) {
             ArePropertiesInitialised = registerProperties();
         }
@@ -375,7 +378,7 @@ public:
 
 
 
-    SwAny property(const std::string& propertyName) {
+    SwAny property(const SwString& propertyName) {
         SwAny retValue;
 
         // Initialiser les propriétés si nécessaire
@@ -388,7 +391,7 @@ public:
         if (it != propertyGetterMap.end()) {
             // Appeler la fonction getter pour récupérer la valeur
             void* valuePtr = it->second();  // Appelle la lambda pour obtenir un pointeur générique
-            const std::string& typeName = propertyArgumentTypeNameMap[propertyName];  // Obtenir le nom du type
+            const SwString& typeName = propertyArgumentTypeNameMap[propertyName];  // Obtenir le nom du type
 
             // Créer un SwAny à partir du pointeur et du type
             retValue = SwAny::fromVoidPtr(valuePtr, typeName);
@@ -401,7 +404,7 @@ public:
     }
 
 
-    bool propertyExist(const std::string& propertyName) {
+    bool propertyExist(const SwString& propertyName) {
         if (!ArePropertiesInitialised) {
             ArePropertiesInitialised = registerProperties();
         }
@@ -429,9 +432,9 @@ protected:
     }
 
 
-    std::map<std::string, std::function<void(void*)>> propertySetterMap;
-    std::map<std::string, std::function<void*()>> propertyGetterMap;
-    std::map<std::string, std::string> propertyArgumentTypeNameMap;
+    std::map<SwString, std::function<void(void*)>> propertySetterMap;
+    std::map<SwString, std::function<void*()>> propertyGetterMap;
+    std::map<SwString, SwString> propertyArgumentTypeNameMap;
     std::vector<std::function<void()>> propertyRegistrars;
 
 signals:
@@ -446,9 +449,9 @@ private:
     Object* m_parent = nullptr;
     std::vector<Object*> children;
     bool ArePropertiesInitialised;
-    std::string objectName;
-    std::map<std::string, std::string> properties;
-    std::map<std::string, std::vector<std::pair<void*, ConnectionType>>> connections;
+    SwString objectName;
+    std::map<SwString, SwString> properties;
+    std::map<SwString, std::vector<std::pair<void*, ConnectionType>>> connections;
     Object* currentSender = nullptr;
 };
 

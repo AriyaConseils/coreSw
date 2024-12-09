@@ -19,69 +19,21 @@
 
 
 
-
-#define SWANY_REGISTER_TYPE(Type) \
-        SwAny::register##Type##Type();
-        
-#define SWANY_DECLARE_TYPE(Type)                                        \
-    SwAny(const Type& value) { store(value); }                          \
-    void store(const Type& val) {                                       \
-        clear();                                                        \
-        new (&storage.Type) Type(val);                                  \
-        typeNameStr = typeid(Type).name();                              \
-    }                                                                   \
-    static void register##Type##Type() {                                \
-        SwAny::_actionMoveFrom[typeid(Type).name()] = [](SwAny& self, SwAny&& other) {  \
-            new (&self.storage.Type) Type(std::move(other.storage.Type));        \
-        };                                                              \
-        SwAny::_actionClear[typeid(Type).name()] = [](SwAny& self) {    \
-            self.storage.Type.~Type();                                  \
-        };                                                              \
-        SwAny::_actionCopyFrom[typeid(Type).name()] = [](SwAny& self, const SwAny& other) { \
-            self.store(other.storage.Type);                             \
-        };                                                              \
-        SwAny::_actionData[typeid(Type).name()] = [](const SwAny& self) -> void* { \
-            return static_cast<void*>(const_cast<Type*>(&self.storage.Type)); \
-        };                                                              \
-        SwAny::_actionFromVoidPtr[typeid(Type).name()] = [](void* ptr) -> SwAny { \
-            return SwAny(*static_cast<Type*>(ptr));                     \
-        };                                                              \
-    }                                                                   \
-    struct register##Type##TypeHelper {                                 \
-        register##Type##TypeHelper() {                                  \
-            SwAny::register##Type##Type();                              \
-        }                                                               \
-    } static _register##Type##TypeHelperInstance;
-
-
-
-
-
-
-
-
-
 class SwAny {
 public:
-
-    SWANY_DECLARE_TYPE(SwFont)
-    SWANY_DECLARE_TYPE(SwString)
-    SWANY_DECLARE_TYPE(SwJsonValue)
-    SWANY_DECLARE_TYPE(SwJsonObject)
-    SWANY_DECLARE_TYPE(SwJsonArray)
-    SWANY_DECLARE_TYPE(DrawTextFormats)
-    SWANY_DECLARE_TYPE(EchoModeEnum)
 
     static void registerAllType() {
         static bool isInit = false;
         if(isInit) return;
-        SWANY_REGISTER_TYPE(SwFont)
-        SWANY_REGISTER_TYPE(SwString)
-        SWANY_REGISTER_TYPE(SwJsonValue)
-        SWANY_REGISTER_TYPE(SwJsonObject)
-        SWANY_REGISTER_TYPE(SwJsonArray)
-        SWANY_REGISTER_TYPE(DrawTextFormats)
-        SWANY_REGISTER_TYPE(EchoModeEnum)
+        isInit = true;
+        registerMetaType<SwFont>();
+        registerMetaType<SwString>();
+        registerMetaType<SwJsonValue>();
+        registerMetaType<SwJsonObject>();
+        registerMetaType<SwJsonArray>();
+        registerMetaType<SwJsonDocument>();
+        registerMetaType<DrawTextFormats>();
+        registerMetaType<EchoModeEnum>();
     }
 
 private:
@@ -93,13 +45,6 @@ private:
         double d;
         std::string str;
         std::vector<uint8_t> byteArray;
-        SwFont SwFont;
-        SwString SwString;
-        SwJsonValue SwJsonValue;
-        SwJsonObject SwJsonObject;
-        SwJsonArray SwJsonArray;
-        DrawTextFormats DrawTextFormats;
-        EchoModeEnum EchoModeEnum;
 
         // Constructeur et destructeur de l'union
         Storage() : dynamic(nullptr) {}
@@ -117,11 +62,15 @@ public:
 
 
     SwAny(const SwAny& other) {
-        copyFrom(other);  // Utiliser la méthode copyFrom pour copier l'objet
+        copyFrom(other);
     }
 
     SwAny() : typeNameStr("") {
 
+    }
+
+    void setTypeName(const std::string& typeName){
+        typeNameStr = typeName;
     }
 
     // Opérateur d'assignation pour copier les valeurs
@@ -129,15 +78,6 @@ public:
         if (this != &other) {
             clear();
             copyFrom(other);
-        }
-        return *this;
-    }
-
-    // Opérateur d'assignation par déplacement (move)
-    SwAny& operator=(SwAny&& other) noexcept {
-        if (this != &other) {
-            clear();
-            moveFrom(std::move(other));
         }
         return *this;
     }
@@ -153,7 +93,7 @@ public:
         auto typeName = typeid(T).name();
 
         // Déplacement dynamique
-        _dynamicMoveFrom[typeName] = [](SwAny& self, SwAny&& other) {
+        getDynamicMoveFromMap()[typeName] = [](SwAny& self, SwAny&& other) {
             if (self.storage.dynamic) {
                 delete static_cast<T*>(self.storage.dynamic); // Nettoyer si nécessaire
             }
@@ -163,26 +103,28 @@ public:
         };
 
         // Clear dynamique
-        _dynamicClear[typeName] = [](SwAny& self) {
+        getDynamicClearMap()[typeName] = [](SwAny& self) {
             delete static_cast<T*>(self.storage.dynamic);
             self.storage.dynamic = nullptr;
         };
 
         // CopyFrom dynamique
-        _dynamicCopyFrom[typeName] = [](SwAny& self, const SwAny& other) {
+        getDynamicCopyFromMap()[typeName] = [](SwAny& self, const SwAny& other) {
             self.storage.dynamic = new T(*static_cast<const T*>(other.storage.dynamic));
             self.typeNameStr = other.typeNameStr;
         };
 
         // Data dynamique
-        _dynamicData[typeName] = [](const SwAny& self) -> void* {
+        getDynamicDataMap()[typeName] = [](const SwAny& self) -> void* {
             return const_cast<void*>(reinterpret_cast<const void*>(self.storage.dynamic));
         };
 
         // FromVoidPtr dynamique
-        _dynamicFromVoidPtr[typeName] = [](void* ptr) -> SwAny {
+        getDynamicFromVoidPtrMap()[typeName] = [typeName](void* ptr) -> SwAny {
             SwAny any;
-            any.store(static_cast<T*>(ptr));
+            any.setTypeName(typeName);
+            T *temp = static_cast<T*>(ptr);
+            any.store(*temp);
             return any;
         };
     }
@@ -197,68 +139,85 @@ public:
     }
 
     static SwAny fromVoidPtr(void* ptr, const std::string& typeNameStr) {
+        if (ptr == nullptr || typeNameStr.empty()) {
+            std::cerr << "Error: Null pointer or empty type name provided to fromVoidPtr." << std::endl;
+            return SwAny(); // Retourner une instance vide si le pointeur ou le type est invalide
+        }
+
+        registerAllType();
+
+        // Gestion des types natifs et standard
         if (typeNameStr == typeid(int).name()) {
             return SwAny(*static_cast<int*>(ptr));
-        }
-        else if (typeNameStr == typeid(float).name()) {
+        } else if (typeNameStr == typeid(float).name()) {
             return SwAny(*static_cast<float*>(ptr));
-        }
-        else if (typeNameStr == typeid(double).name()) {
+        } else if (typeNameStr == typeid(double).name()) {
             return SwAny(*static_cast<double*>(ptr));
-        }
-        else if (typeNameStr == typeid(std::string).name()) {
+        } else if (typeNameStr == typeid(std::string).name()) {
             return SwAny(*static_cast<std::string*>(ptr));
-        }
-        else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+        } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
             return SwAny(*static_cast<std::vector<uint8_t>*>(ptr));
         }
-        else if (_actionFromVoidPtr.find(typeNameStr) != _actionFromVoidPtr.end()) {
-            return _actionFromVoidPtr[typeNameStr](ptr);
+
+        // Gestion des types dynamiques
+        auto& dynamicMap = getDynamicFromVoidPtrMap();
+        auto it = dynamicMap.find(typeNameStr);
+        if (it != dynamicMap.end()) {
+            return it->second(ptr); // Appel de la fonction dynamique
         }
-        else if (_dynamicFromVoidPtr.find(typeNameStr) != _dynamicFromVoidPtr.end()) {
-            return _dynamicFromVoidPtr[typeNameStr](ptr);
+
+        // Si le type n'est pas trouvé, afficher un message clair
+        std::cerr << "Error: Type '" << typeNameStr << "' not found in dynamic type map.\n"
+                  << "Available types in the map:" << std::endl;
+
+        for (const auto& entry : dynamicMap) {
+            std::cerr << "  - " << entry.first << std::endl; // Afficher tous les types enregistrés
         }
-        else {
-            return SwAny();
-        }
+
+        // Aucun type trouvé, retourner une instance vide
+        return SwAny();
     }
+
+
 
     // Récupérer la valeur avec cast explicite
     template <typename T>
     T get() const {
         if (typeNameStr != typeid(T).name()) {
-            throw std::runtime_error("Type mismatch: cannot cast " + typeNameStr + " to " + typeid(T).name());
+            std::cerr << "Type mismatch: cannot cast " << typeNameStr
+                      << " to " << typeid(T).name() << "." << std::endl;
+            return T{}; // Retourne une valeur par défaut du type T
         }
         return *reinterpret_cast<T*>(data());
     }
 
+
     // Méthode pour obtenir un pointeur générique vers les données
     void* data() const {
+        // Enregistrement des types si nécessaire
         registerAllType();
+        // Gestion des types natifs
         if (typeNameStr == typeid(int).name()) {
-            return static_cast<void*>(const_cast<int*>(&storage.i));
+            return const_cast<void*>(static_cast<const void*>(&storage.i));
+        } else if (typeNameStr == typeid(float).name()) {
+            return const_cast<void*>(static_cast<const void*>(&storage.f));
+        } else if (typeNameStr == typeid(double).name()) {
+            return const_cast<void*>(static_cast<const void*>(&storage.d));
+        } else if (typeNameStr == typeid(std::string).name()) {
+            return const_cast<void*>(static_cast<const void*>(&storage.str));
+        } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+            return const_cast<void*>(static_cast<const void*>(&storage.byteArray));
         }
-        else if (typeNameStr == typeid(float).name()) {
-            return static_cast<void*>(const_cast<float*>(&storage.f));
+
+        // Gestion des types dynamiques
+        auto& dynamicDataMap = getDynamicDataMap();
+        auto it = dynamicDataMap.find(typeNameStr);
+        if (it != dynamicDataMap.end()) {
+            return it->second(*this); // Appel de la fonction pour récupérer les données dynamiques
         }
-        else if (typeNameStr == typeid(double).name()) {
-            return static_cast<void*>(const_cast<double*>(&storage.d));
-        }
-        else if (typeNameStr == typeid(std::string).name()) {
-            return static_cast<void*>(const_cast<std::string*>(&storage.str));
-        }
-        else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
-            return static_cast<void*>(const_cast<std::vector<uint8_t>*>(&storage.byteArray));
-        }
-        else if (_actionData.find(typeNameStr) != _actionData.end()) {
-            return _actionData[typeNameStr](*this);
-        }
-        else if (_dynamicData.find(typeNameStr) != _dynamicData.end()) {
-            return _dynamicData.at(typeNameStr)(*this);
-        }
-        else {
-            return nullptr;
-        }
+
+        // Aucun type trouvé, retourne nullptr
+        return nullptr;
     }
 
 
@@ -266,73 +225,81 @@ public:
 
     std::string typeNameStr;  // Sauvegarde du nom du type
 
-    // Méthode pour copier les données
     void copyFrom(const SwAny& other) {
+        // Copier le type du nom
         typeNameStr = other.typeNameStr;
+
+        if (typeNameStr.empty()) {
+            return; // Aucun type à copier
+        }
+
+        // Gestion des types natifs
         if (typeNameStr == typeid(int).name()) {
             store(other.storage.i);
-        }
-        else if (typeNameStr == typeid(float).name()) {
+        } else if (typeNameStr == typeid(float).name()) {
             store(other.storage.f);
-        }
-        else if (typeNameStr == typeid(double).name()) {
+        } else if (typeNameStr == typeid(double).name()) {
             store(other.storage.d);
-        }
-        else if (typeNameStr == typeid(std::string).name()) {
+        } else if (typeNameStr == typeid(std::string).name()) {
             store(other.storage.str);
-        }
-        else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+        } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
             store(other.storage.byteArray);
         }
-        else if (_actionCopyFrom.find(typeNameStr) != _actionCopyFrom.end()) {
-            _actionCopyFrom[typeNameStr](*this, other);
-        }
-        else if (_dynamicCopyFrom.find(typeNameStr) != _dynamicCopyFrom.end()) {
-            _dynamicCopyFrom[typeNameStr](*this, other); // Appel de la fonction dynamique pour copier
-        }
-        else if (other.storage.dynamic) {
-            // Si aucune fonction n'est définie, effectuer une copie générique des données dynamiques
-            storage.dynamic = other.storage.dynamic;
-        }
+        // Gestion des types dynamiques
         else {
-
+            auto& dynamicCopyMap = getDynamicCopyFromMap();
+            auto it = dynamicCopyMap.find(typeNameStr);
+            if (it != dynamicCopyMap.end()) {
+                it->second(*this, other); // Appel de la fonction dynamique pour copier
+            }
+            // Copie générique des données dynamiques si aucune fonction n'est définie
+            else if (other.storage.dynamic) {
+                storage.dynamic = other.storage.dynamic; // Copie directe
+            }
         }
     }
+
 
     // Méthode pour déplacer les données (move)
     void moveFrom(SwAny&& other) {
+        // Déplacer le type du nom
         typeNameStr = std::move(other.typeNameStr);
+
+        if (typeNameStr.empty()) {
+            other.clear();
+            return;
+        }
+
+        // Cas spécifiques pour les types natifs ou gérés explicitement
         if (typeNameStr == typeid(int).name()) {
             storage.i = other.storage.i;
-        }
-        else if (typeNameStr == typeid(float).name()) {
+        } else if (typeNameStr == typeid(float).name()) {
             storage.f = other.storage.f;
-        }
-        else if (typeNameStr == typeid(double).name()) {
+        } else if (typeNameStr == typeid(double).name()) {
             storage.d = other.storage.d;
-        }
-        else if (typeNameStr == typeid(std::string).name()) {
+        } else if (typeNameStr == typeid(std::string).name()) {
             new (&storage.str) std::string(std::move(other.storage.str));
-        }
-        else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+        } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
             new (&storage.byteArray) std::vector<uint8_t>(std::move(other.storage.byteArray));
         }
-        if (_actionMoveFrom.find(typeNameStr) != _actionMoveFrom.end()) {
-            _actionMoveFrom[typeNameStr](*this, std::move(other));
-        }
-        else if (_dynamicMoveFrom.find(typeNameStr) != _dynamicMoveFrom.end()) {
-            _dynamicMoveFrom[typeNameStr](*this, std::move(other));
-        }
-        else if (other.storage.dynamic) {
-            // Déplacement brut des données dynamiques non enregistrées
-            storage.dynamic = other.storage.dynamic;
-            other.storage.dynamic = nullptr;
-        }
+        // Gestion des types dynamiques enregistrés
         else {
-
+            auto& dynamicMoveMap = getDynamicMoveFromMap();
+            auto it = dynamicMoveMap.find(typeNameStr);
+            if (it != dynamicMoveMap.end()) {
+                it->second(*this, std::move(other));
+            }
+            // Déplacement brut pour les types dynamiques non enregistrés
+            else if (other.storage.dynamic) {
+                storage.dynamic = other.storage.dynamic;
+                other.storage.dynamic = nullptr;
+            }
         }
+
+        // Réinitialisation de l'objet source
         other.clear();
     }
+
 
 
 
@@ -350,20 +317,24 @@ public:
     void store(double val) { clear(); storage.d = val; typeNameStr = typeid(double).name(); }
     void store(const std::string& val) { clear(); new (&storage.str) std::string(val); typeNameStr = typeid(std::string).name(); }
     void store(const std::vector<uint8_t>& val) { clear(); new (&storage.byteArray) std::vector<uint8_t>(val); typeNameStr = typeid(std::vector<uint8_t>).name(); }
-    //void store(const SwFont& val) { clear(); new (&storage.font) SwFont(val); typeNameStr = typeid(SwFont).name(); }
 
     // Libérer les ressources allouées
     void clear() {
-        if (_actionClear.find(typeNameStr) != _actionClear.end()) {
-            _actionClear[typeNameStr](*this);
-        } else if (typeNameStr == typeid(std::string).name()) {
-            storage.str.~basic_string();
-        } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
-            storage.byteArray.~vector();
-        } else if (_dynamicClear.find(typeNameStr) != _dynamicClear.end()) {
-            _dynamicClear[typeNameStr](*this); // Passer l'objet SwAny
-            storage.dynamic = nullptr; // Remettre le pointeur à nul
+        if (!typeNameStr.empty()) {
+            // Utilisation de _dynamicClear si une fonction correspondante existe pour ce type
+            auto& dynamicClearMap = getDynamicClearMap(); // Accès à la map _dynamicClear
+            auto it = dynamicClearMap.find(typeNameStr);
+            if (it != dynamicClearMap.end()) {
+                it->second(*this); // Appel de la fonction de destruction dynamique
+            } else if (typeNameStr == typeid(std::string).name()) {
+                storage.str.~basic_string();
+            } else if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+                storage.byteArray.~vector();
+            }
         }
+
+        // Réinitialisation des données
+        storage.dynamic = nullptr;
         typeNameStr.clear();
     }
 
@@ -371,23 +342,34 @@ public:
 
 
 
+    static std::map<std::string, std::function<void(SwAny&)>>& getDynamicClearMap() {
+        static std::map<std::string, std::function<void(SwAny&)>> _dynamicClear;
+        return _dynamicClear;
+    }
 
+    // Méthode pour accéder à _dynamicCopyFrom
+    static std::map<std::string, std::function<void(SwAny&, const SwAny&)>>& getDynamicCopyFromMap() {
+        static std::map<std::string, std::function<void(SwAny&, const SwAny&)>> _dynamicCopyFrom;
+        return _dynamicCopyFrom;
+    }
 
-    // Maps pour stocker les actions par type
-    static std::map<std::string, std::function<void(SwAny&, SwAny&&)>> _actionMoveFrom;
-    static std::map<std::string, std::function<void(SwAny&)>> _actionClear;
-    static std::map<std::string, std::function<void(SwAny&, const SwAny&)>> _actionCopyFrom;
-    static std::map<std::string, std::function<void* (const SwAny&)>> _actionData;
-    static std::map<std::string, std::function<SwAny(void*)>> _actionFromVoidPtr;
+    // Méthode pour accéder à _dynamicData
+    static std::map<std::string, std::function<void*(const SwAny&)>>& getDynamicDataMap() {
+        static std::map<std::string, std::function<void*(const SwAny&)>> _dynamicData;
+        return _dynamicData;
+    }
 
-    // Maps pour les types dynamiques
-    static std::map<std::string, std::function<void(SwAny&)>> _dynamicClear;
-    static std::map<std::string, std::function<void(SwAny&, const SwAny&)>> _dynamicCopyFrom;
-    static std::map<std::string, std::function<void*(const SwAny&)>> _dynamicData;
-    static std::map<std::string, std::function<SwAny(void*)>> _dynamicFromVoidPtr;
-    static std::map<std::string, std::function<void(SwAny&, SwAny&&)>> _dynamicMoveFrom;
+    // Méthode pour accéder à _dynamicFromVoidPtr
+    static std::map<std::string, std::function<SwAny(void*)>>& getDynamicFromVoidPtrMap() {
+        static std::map<std::string, std::function<SwAny(void*)>> _dynamicFromVoidPtr;
+        return _dynamicFromVoidPtr;
+    }
 
-
+    // Méthode pour accéder à _dynamicMoveFrom
+    static std::map<std::string, std::function<void(SwAny&, SwAny&&)>>& getDynamicMoveFromMap() {
+        static std::map<std::string, std::function<void(SwAny&, SwAny&&)>> _dynamicMoveFrom;
+        return _dynamicMoveFrom;
+    }
 
 
 public:
@@ -451,7 +433,7 @@ public:
      *
      * @return SwString La valeur convertie si le type est SwString, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
      */
-    SwString toSwString() const {
+    SwString toString() const {
         return typeNameStr == typeid(SwString).name()
                    ? get<SwString>()
                    : (std::cerr << "Error: Not a SwString. Current type: " << typeNameStr << std::endl, SwString());

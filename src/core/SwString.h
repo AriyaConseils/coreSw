@@ -285,11 +285,29 @@ public:
     }
 
     SwList<SwString> split(const char* delimiter) const {
-        if (delimiter == nullptr || std::strlen(delimiter) != 1) {
-            throw std::invalid_argument("Delimiter must be a single character.");
+        SwList<SwString> result;
+        if (delimiter == nullptr || *delimiter == '\0') {
+            return result; // Retourne une liste vide si le délimiteur est invalide.
         }
-        return split(delimiter[0]);
+
+        std::string strData = this->toStdString(); // Convertir SwString en std::string.
+        std::string strDelimiter = delimiter;
+        size_t start = 0;
+        size_t end = 0;
+
+        while ((end = strData.find(strDelimiter, start)) != std::string::npos) {
+            result.append(SwString(strData.substr(start, end - start).c_str())); // Ajouter la sous-chaîne trouvée.
+            start = end + strDelimiter.length();
+        }
+
+        // Ajouter le dernier segment, s'il y en a un.
+        if (start < strData.length()) {
+            result.append(SwString(strData.substr(start).c_str()));
+        }
+
+        return result;
     }
+
 
     SwList<SwString> split(char delimiter) const {
         SwList<SwString> result;

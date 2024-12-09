@@ -63,16 +63,16 @@ int main() {
         lineEdit->resize(lineEditWidth, lineEditHeight);
         lineEdit->setEchoMode(EchoModeEnum::NormalEcho);
 
-        // Création des boutons
-        PushButton* button = new PushButton(SwString("Button %1").arg(SwString::number(i)), &mainWindow);
-        button->setCursor(CursorType::Hand);
-        button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);
-        button->resize(buttonWidth, buttonHeight);
+         // Création des boutons
+         PushButton* button = new PushButton(SwString("Button %1").arg(SwString::number(i)), &mainWindow);
+         button->setCursor(CursorType::Hand);
+         button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);
+         button->resize(buttonWidth, buttonHeight);
 
 
 
-        Object::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
-            std::cout << "*********Button Clicked**********" << std::endl;
+         Object::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
+             std::cout << "*********Button Clicked**********" << std::endl;
 
         }));
     }
