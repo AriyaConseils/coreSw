@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Ajouter le répertoire src/core pour construire la bibliothèque statique coreSw
-add_subdirectory(src/core)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 
 # Ajouter tous les exemples dans le dossier exemples
 add_subdirectory(exemples/01-SimpleWindow)

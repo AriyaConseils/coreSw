@@ -10,22 +10,69 @@ class SwJsonDocument {
 public:
     enum class JsonFormat { Compact, Pretty };
 
-    // Constructeurs
+    /**
+     * @brief Default constructor for the SwJsonDocument class.
+     *
+     * Initializes an empty JSON document with no root value.
+     */
     SwJsonDocument() = default;
+
+    /**
+     * @brief Constructor to initialize a SwJsonDocument with a JSON object.
+     *
+     * Sets the root of the document to the specified JSON object.
+     *
+     * @param object A SwJsonObject to set as the root of the document.
+     */
     SwJsonDocument(const SwJsonObject& object) : rootValue_(object) {}
+
+    /**
+     * @brief Constructor to initialize a SwJsonDocument with a JSON array.
+     *
+     * Sets the root of the document to the specified JSON array.
+     *
+     * @param array A SwJsonArray to set as the root of the document.
+     */
     SwJsonDocument(const SwJsonArray& array) : rootValue_(array) {}
 
-    // Définir la racine
+    /**
+     * @brief Sets the root of the JSON document to a JSON object.
+     *
+     * Replaces the current root value with the specified JSON object.
+     *
+     * @param object The SwJsonObject to set as the root of the document.
+     */
     void setObject(const SwJsonObject& object) {
         rootValue_ = SwJsonValue(object);
     }
 
+    /**
+     * @brief Sets the root of the JSON document to a JSON array.
+     *
+     * Replaces the current root value with the specified JSON array.
+     *
+     * @param array The SwJsonArray to set as the root of the document.
+     */
     void setArray(const SwJsonArray& array) {
         rootValue_ = SwJsonValue(array);
     }
 
-    // Vérifier le type
+    /**
+     * @brief Checks if the root of the JSON document is a JSON object.
+     *
+     * Determines whether the root value of the document is of type SwJsonObject.
+     *
+     * @return `true` if the root is a JSON object, `false` otherwise.
+     */
     bool isObject() const { return rootValue_.isObject(); }
+
+    /**
+     * @brief Checks if the root of the JSON document is a JSON array.
+     *
+     * Determines whether the root value of the document is of type SwJsonArray.
+     *
+     * @return `true` if the root is a JSON array, `false` otherwise.
+     */
     bool isArray() const { return rootValue_.isArray(); }
 
     SwJsonObject object() const {
@@ -36,7 +83,15 @@ public:
         return *rootValue_.toObject(); // Retourne l'objet JSON
     }
 
-    // Retourne le document sous forme de tableau JSON (SwJsonArray)
+    /**
+     * @brief Retrieves the root of the JSON document as a JSON object.
+     *
+     * Returns the root value of the document as a SwJsonObject.
+     * If the root is not a JSON object, an empty SwJsonObject is returned,
+     * and an error message is logged.
+     *
+     * @return The root value as a SwJsonObject. Returns an empty object if the root is not of type SwJsonObject.
+     */
     SwJsonArray array() const {
         if (!rootValue_.isArray()) {
             std::cerr << "Root is not a JSON array." << std::endl;
@@ -45,11 +100,32 @@ public:
         return *rootValue_.toArray(); // Retourne le tableau JSON
     }
 
-    // Retourne la racine sous forme de valeur JSON (SwJsonValue)
+    /**
+     * @brief Retrieves the root value of the JSON document as a SwJsonValue.
+     *
+     * Returns the root value of the document, regardless of its type (object, array, string, etc.).
+     *
+     * @return The root value of the document as a SwJsonValue.
+     */
     SwJsonValue toJsonValue() const {
         return rootValue_; // Retourne directement la valeur racine
     }
 
+    /**
+     * @brief Finds or creates a JSON value at the specified path within the document.
+     *
+     * Traverses the JSON document using a path to locate a specific value.
+     * - The path can include nested keys separated by '/'.
+     * - If the path is not found, an error is logged, and a default invalid value is returned unless `createIfNotExist` is true.
+     * - If `createIfNotExist` is true, missing keys along the path are created as JSON objects.
+     *
+     * @param rawPath The path to the JSON value, with nested keys separated by '/'.
+     * @param createIfNotExist A flag indicating whether to create missing keys as JSON objects (default: false).
+     *
+     * @return A reference to the located SwJsonValue. If the path is not found and creation is not allowed, returns a default invalid value.
+     *
+     * @note The path supports replacing '\\' with '/' to accommodate different path formats.
+     */
     SwJsonValue& find(const SwString& rawPath, bool createIfNotExist = false) {
         // Remplacer les '\\' par '/'
         SwString path = rawPath;
@@ -86,7 +162,17 @@ public:
         return *current;
     }
 
-    // Générer une chaîne JSON
+    /**
+     * @brief Serializes the JSON document to a string.
+     *
+     * Converts the JSON document into a string representation in either compact or pretty format.
+     * - Optionally applies encryption to the serialized string using the provided encryption key.
+     *
+     * @param format The desired JSON format, either `JsonFormat::Compact` (default) or `JsonFormat::Pretty`.
+     * @param encryptionKey An optional key for encrypting the JSON string (default: empty string for no encryption).
+     *
+     * @return A SwString containing the serialized JSON document.
+     */
     SwString toJson(JsonFormat format = JsonFormat::Compact, const SwString& encryptionKey = "") const {
         SwString result;
 
@@ -95,7 +181,17 @@ public:
         return result;
     }
 
-
+    /**
+     * @brief Creates a SwJsonDocument from a JSON string.
+     *
+     * Parses a JSON string and constructs a SwJsonDocument object.
+     * - Optionally decrypts the JSON string using the provided decryption key before parsing.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param decryptionKey An optional key for decrypting the JSON string (default: empty string for no decryption).
+     *
+     * @return A SwJsonDocument constructed from the parsed JSON string. If parsing fails, an empty document is returned.
+     */
     static SwJsonDocument fromJson(const std::string& jsonString, const SwString& decryptionKey = "") {
         SwJsonDocument doc;
         std::string errorMessage;
@@ -103,6 +199,21 @@ public:
         return doc;
     }
 
+    /**
+     * @brief Loads a JSON document from a JSON string.
+     *
+     * Parses a JSON string and populates the current SwJsonDocument object.
+     * - Optionally decrypts the JSON string using the provided decryption key before parsing.
+     * - Validates that no unexpected characters remain after parsing.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param errorMessage A reference to a string that will contain an error message if parsing fails.
+     * @param decryptionKey An optional key for decrypting the JSON string (default: empty string for no decryption).
+     *
+     * @return `true` if the JSON string was successfully parsed and loaded, `false` otherwise.
+     *
+     * @note On failure, the `errorMessage` parameter provides details about the error.
+     */
     bool loadFromJson(const std::string& jsonString, std::string& errorMessage, const SwString& decryptionKey = "") {
         try {
             // Analyse JSON
@@ -129,6 +240,15 @@ public:
 private:
     SwJsonValue rootValue_; // Racine du document
 
+    /**
+     * @brief Recursively generates a JSON string from a SwJsonValue.
+     *
+     * @param value The JSON value to serialize.
+     * @param output The resulting JSON string.
+     * @param pretty Whether to format the JSON string with indentation.
+     * @param indentLevel The current level of indentation for pretty formatting.
+     * @param encryptionKey Optional key to encrypt string values.
+     */
     void generateJson(const SwJsonValue& value, SwString& output, bool pretty, int indentLevel, const SwString& encryptionKey = "") const {
         SwString indent = pretty ? SwString(indentLevel * 2, ' ') : SwString("");
         SwString childIndent = pretty ? SwString((indentLevel + 1) * 2, ' ') : SwString("");
@@ -186,8 +306,15 @@ private:
         }
     }
 
-
-
+    /**
+     * @brief Parses a JSON string into a SwJsonValue.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     * @param decryptionKey Optional key to decrypt string values before parsing.
+     *
+     * @return The parsed SwJsonValue. Returns an invalid value on error.
+     */
     SwJsonValue parseJson(const SwString& jsonString, size_t& index, const SwString& decryptionKey = "") const {
         auto debugContext = [&](size_t errorIndex, const SwString& message) {
             size_t start = (errorIndex > 30) ? errorIndex - 30 : 0;
@@ -270,7 +397,15 @@ private:
         return SwJsonValue();
     }
 
-
+    /**
+     * @brief Parses a JSON object from a JSON string.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     * @param decryptionKey Optional key to decrypt string values before parsing.
+     *
+     * @return The parsed SwJsonObject wrapped in a SwJsonValue. Returns an invalid value on error.
+     */
     SwJsonValue parseObject(const SwString& jsonString, size_t& index, const SwString& decryptionKey = "") const {
         SwJsonObject object;
         ++index; // Passer '{'
@@ -309,9 +444,15 @@ private:
         return SwJsonValue(object);
     }
 
-
-
-
+    /**
+     * @brief Parses a JSON array from a JSON string.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     * @param decryptionKey Optional key to decrypt string values before parsing.
+     *
+     * @return The parsed SwJsonArray wrapped in a SwJsonValue. Returns an invalid value on error.
+     */
     SwJsonValue parseArray(const SwString& jsonString, size_t& index, const SwString& decryptionKey = "") const {
         SwJsonArray array;
         ++index; // Passer '['
@@ -338,9 +479,15 @@ private:
         return SwJsonValue(array);
     }
 
-
-
-
+    /**
+     * @brief Parses a JSON string from a JSON input.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     * @param decryptionKey Optional key to decrypt the parsed string value.
+     *
+     * @return The parsed SwString. Returns an empty string on error.
+     */
     SwString parseString(const SwString& jsonString, size_t& index, const SwString& decryptionKey = "") const {
         ++index; // Passer le premier guillemet '"'
         SwString result;
@@ -379,8 +526,15 @@ private:
         return decryptionKey.isEmpty() ? result : result.decryptAES(decryptionKey);
     }
 
-
-
+    /**
+     * @brief Parses a JSON number from a JSON string.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     * @param decryptionKey Optional key to decrypt the parsed numeric value.
+     *
+     * @return The parsed SwJsonValue containing a number. Returns an invalid value on error.
+     */
     SwJsonValue parseNumber(const SwString& jsonString, size_t& index, const SwString& decryptionKey = "") const {
         size_t start = index;
 
@@ -395,13 +549,17 @@ private:
                                       : SwJsonValue(numberString.toInt());
     }
 
+    /**
+     * @brief Parses a JSON literal (e.g., "true", "false", "null") from a JSON string.
+     *
+     * @param jsonString The JSON string to parse.
+     * @param index A reference to the current position in the string during parsing.
+     *
+     * @return The parsed SwString containing the literal value.
+     */
     SwString parseLiteral(const SwString& jsonString, size_t& index) const {
         size_t start = index;
-        while (index < jsonString.size() && std::isalpha(jsonString[index])) ++index;
+        while (index < jsonString.size() && std::isalpha(static_cast<int>(jsonString[index]))) ++index;
         return jsonString.mid(start, index - start);
     }
-
-
-
-
 };

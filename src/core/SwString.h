@@ -10,13 +10,15 @@
 #include <cstring>
 #include "SwList.h"
 #include "SwCrypto.h"
+#include <cctype>
+
 
 class SwString {
 public:
     // Constructeurs
-    SwString() : data_("") {} // Constructeur par défaut
-    SwString(const char* str) : data_(str) {} // Constructeur à partir de c-string
-    SwString(const std::string& str) : data_(str) {} // Constructeur à partir de std::string
+    SwString() : data_("") {} // Constructeur par dï¿½faut
+    SwString(const char* str) : data_(str) {} // Constructeur ï¿½ partir de c-string
+    SwString(const std::string& str) : data_(str) {} // Constructeur ï¿½ partir de std::string
     SwString(const SwString& other) : data_(other.data_) {} // Constructeur par copie
     SwString(SwString&& other) noexcept : data_(std::move(other.data_)) {} // Constructeur par mouvement
     SwString(size_t count, char ch) : data_(std::string(count, ch)) {}
@@ -30,7 +32,7 @@ public:
         return data_;
     }
 
-    // Opérateurs
+    // Opï¿½rateurs
     SwString& operator=(const SwString& other) {
         if (this != &other) {
             data_ = other.data_;
@@ -54,6 +56,7 @@ public:
         data_ = str;
         return *this;
     }
+
 
     SwString& operator+=(const SwString& other) {
         data_ += other.data_;
@@ -103,7 +106,7 @@ public:
         return data_;
     }
 
-    // Méthodes de base
+    // Mï¿½thodes de base
     size_t size() const {
         return data_.size();
     }
@@ -143,12 +146,12 @@ public:
         try {
             int result = std::stoi(data_);
             if (ok) {
-                *ok = true; // Conversion réussie
+                *ok = true; // Conversion rï¿½ussie
             }
             return result;
         } catch (const std::exception&) {
             if (ok) {
-                *ok = false; // Conversion échouée
+                *ok = false; // Conversion ï¿½chouï¿½e
             }
             std::cerr << "Invalid int conversion in SwString: " << data_ << std::endl;
         }
@@ -159,25 +162,25 @@ public:
         try {
             float result = std::stof(data_);
             if (ok) {
-                *ok = true; // Conversion réussie
+                *ok = true; // Conversion rï¿½ussie
             }
             return result;
         } catch (const std::exception&) {
             if (ok) {
-                *ok = false; // Conversion échouée
+                *ok = false; // Conversion ï¿½chouï¿½e
             }
             std::cerr << "Invalid float conversion in SwString: " << data_ << std::endl;
-            return 0.0f; // Retourner une valeur par défaut
+            return 0.0f; // Retourner une valeur par dï¿½faut
         }
     }
 
     static SwString number(float value, int precision = -1) {
         std::ostringstream os;
 
-        // Utiliser la notation fixe pour éviter le format scientifique
+        // Utiliser la notation fixe pour ï¿½viter le format scientifique
         os << std::fixed;
 
-        // Appliquer la précision si elle est spécifiée
+        // Appliquer la prï¿½cision si elle est spï¿½cifiï¿½e
         if (precision >= 0) {
             os.precision(precision);
         }
@@ -186,7 +189,7 @@ public:
 
         std::string result = os.str();
 
-        // Supprimer les zéros inutiles uniquement si une précision est spécifiée
+        // Supprimer les zï¿½ros inutiles uniquement si une prï¿½cision est spï¿½cifiï¿½e
         if (precision >= 0 && result.find('.') != std::string::npos) {
             result.erase(result.find_last_not_of('0') + 1);
             if (result.back() == '.') {
@@ -200,10 +203,10 @@ public:
     static SwString number(double value, int precision = -1) {
         std::ostringstream os;
 
-        // Utiliser la notation fixe pour éviter le format scientifique
+        // Utiliser la notation fixe pour ï¿½viter le format scientifique
         os << std::fixed;
 
-        // Appliquer la précision si elle est spécifiée
+        // Appliquer la prï¿½cision si elle est spï¿½cifiï¿½e
         if (precision >= 0) {
             os.precision(precision);
         }
@@ -212,7 +215,7 @@ public:
 
         std::string result = os.str();
 
-        // Supprimer les zéros inutiles uniquement si une précision est spécifiée
+        // Supprimer les zï¿½ros inutiles uniquement si une prï¿½cision est spï¿½cifiï¿½e
         if (precision >= 0 && result.find('.') != std::string::npos) {
             result.erase(result.find_last_not_of('0') + 1);
             if (result.back() == '.') {
@@ -224,7 +227,7 @@ public:
     }
 
     static SwString number(int value) {
-        // Les entiers ne nécessitent pas de format spécifique
+        // Les entiers ne nï¿½cessitent pas de format spï¿½cifique
         return SwString(std::to_string(value));
     }
 
@@ -252,7 +255,7 @@ public:
         }
     }
 
-    // Décrypter avec une clé donnée
+    // Dï¿½crypter avec une clï¿½ donnï¿½e
     SwString decryptAES(const SwString& key) {
         try {
             return SwString(SwCrypto::decryptAES(data_, key.data_));
@@ -262,7 +265,7 @@ public:
         }
     }
 
-    // Décrypter avec une clé donnée (statique)
+    // Dï¿½crypter avec une clï¿½ donnï¿½e (statique)
     static SwString decryptAES(const SwString& encryptedBase64, const SwString& key) {
         try {
             return SwString(SwCrypto::decryptAES(encryptedBase64.data_, key.data_));
@@ -287,7 +290,7 @@ public:
     SwList<SwString> split(const char* delimiter) const {
         SwList<SwString> result;
         if (delimiter == nullptr || *delimiter == '\0') {
-            return result; // Retourne une liste vide si le délimiteur est invalide.
+            return result; // Retourne une liste vide si le dï¿½limiteur est invalide.
         }
 
         std::string strData = this->toStdString(); // Convertir SwString en std::string.
@@ -296,7 +299,7 @@ public:
         size_t end = 0;
 
         while ((end = strData.find(strDelimiter, start)) != std::string::npos) {
-            result.append(SwString(strData.substr(start, end - start).c_str())); // Ajouter la sous-chaîne trouvée.
+            result.append(SwString(strData.substr(start, end - start).c_str())); // Ajouter la sous-chaï¿½ne trouvï¿½e.
             start = end + strDelimiter.length();
         }
 
@@ -321,7 +324,7 @@ public:
             end = data_.find(delimiter, start);
         }
 
-        // Ajouter le dernier segment de la chaîne
+        // Ajouter le dernier segment de la chaï¿½ne
         if (start < data_.size()) {
             result.append(SwString(data_.substr(start)));
         }
@@ -352,7 +355,7 @@ public:
             end = data_.find(delimiter.toStdString(), start);
         }
 
-        // Ajouter le dernier segment de la chaîne
+        // Ajouter le dernier segment de la chaï¿½ne
         if (start < data_.size()) {
             result.append(SwString(data_.substr(start)));
         }
@@ -383,33 +386,33 @@ public:
 
     size_t indexOf(const SwString& substring) const {
         size_t pos = data_.find(substring.data_);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvé
+        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvï¿½
     }
 
     size_t lastIndexOf(const SwString& substring) const {
         size_t pos = data_.rfind(substring.data_);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvé
+        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvï¿½
     }
 
     size_t lastIndexOf(char character) const {
         size_t pos = data_.rfind(character);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvé
+        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvï¿½
     }
 
     size_t firstIndexOf(const SwString& substring) const {
         size_t pos = data_.find(substring.data_);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvé
+        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvï¿½
     }
 
     size_t firstIndexOf(char character) const {
         size_t pos = data_.find(character);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvé
+        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouvï¿½
     }
 
     SwString trimmed() const {
         size_t start = data_.find_first_not_of(" \t\n\r");
         size_t end = data_.find_last_not_of(" \t\n\r");
-        if (start == std::string::npos) return SwString(""); // Chaîne vide si tout est des espaces
+        if (start == std::string::npos) return SwString(""); // Chaï¿½ne vide si tout est des espaces
         return SwString(data_.substr(start, end - start + 1));
     }
 
@@ -492,14 +495,14 @@ public:
         if (data_.empty()) {
             return SwString("");
         }
-        return SwString(1, data_.front()); // Crée une SwString avec le premier caractère
+        return SwString(1, data_.front()); // Crï¿½e une SwString avec le premier caractï¿½re
     }
 
     SwString last() const {
         if (data_.empty()) {
             return SwString("");
         }
-        return SwString(1, data_.back()); // Crée une SwString avec le dernier caractère
+        return SwString(1, data_.back()); // Crï¿½e une SwString avec le dernier caractï¿½re
     }
 
 #ifdef QT_CORE_LIB

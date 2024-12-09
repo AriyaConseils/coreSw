@@ -3,10 +3,13 @@
 
 #include <vector>
 #include <initializer_list>
+#include <unordered_set>
 #include <stdexcept>
 #include <iterator>
 #include <algorithm>
 #include <sstream>
+#include <functional>
+
 
 template<typename T>
 class SwList {
@@ -16,13 +19,19 @@ public:
     SwList(const SwList& other) = default;
     SwList(SwList&& other) noexcept = default;
     SwList(std::initializer_list<T> init) : data_(init) {}
-
+    template<typename Iter>
+    SwList(Iter begin, Iter end) : data_(begin, end) {}
     // Destructeur
     ~SwList() = default;
 
-    // Opérateurs
+    // Opï¿½rateurs
     SwList& operator=(const SwList& other) = default;
     SwList& operator=(SwList&& other) noexcept = default;
+
+    SwList& operator<<(const T& value) {
+        append(value);
+        return *this;
+    }
 
     T& operator[](size_t index) {
         return data_[index];
@@ -40,9 +49,29 @@ public:
         return data_ != other.data_;
     }
 
-    // Méthodes principales
+    SwList operator+(const SwList& other) const {
+        SwList result(*this);
+        result.data_.insert(result.data_.end(), other.data_.begin(), other.data_.end());
+        return result;
+    }
+
+    SwList& operator+=(const SwList& other) {
+        data_.insert(data_.end(), other.data_.begin(), other.data_.end());
+        return *this;
+    }
+
+    // Mï¿½thodes principales
     void append(const T& value) {
         data_.push_back(value);
+    }
+
+    template<typename Iter>
+    void append(Iter begin, Iter end) {
+        data_.insert(data_.end(), begin, end);
+    }
+
+    void append(const SwList<T>& other) {
+        data_.insert(data_.end(), other.data_.begin(), other.data_.end());
     }
 
     void prepend(const T& value) {
@@ -83,7 +112,7 @@ public:
         return data_.empty();
     }
 
-    // Accès aux éléments
+    // Accï¿½s aux ï¿½lï¿½ments
     T& at(size_t index) {
         if (index >= data_.size()) {
             throw std::out_of_range("Index out of range");
@@ -98,7 +127,14 @@ public:
         return data_[index];
     }
 
-    // Itérateurs
+    T value(size_t index, const T& defaultValue = T()) const {
+        if (index < data_.size()) {
+            return data_[index];
+        }
+        return defaultValue;
+    }
+
+    // Itï¿½rateurs
     typename std::vector<T>::iterator begin() {
         return data_.begin();
     }
@@ -115,22 +151,72 @@ public:
         return data_.end();
     }
 
+    const T* data() const {
+        return data_.data();
+    }
+
+    T* data() {
+        return data_.data();
+    }
+
+    void reverse() {
+        std::reverse(data_.begin(), data_.end());
+    }
+
+    void removeDuplicates() {
+        std::sort(data_.begin(), data_.end());
+        data_.erase(std::unique(data_.begin(), data_.end()), data_.end());
+    }
+
+    bool hasDuplicates() const {
+        std::unordered_set<T> seen;
+        for (const auto& value : data_) {
+            if (!seen.insert(value).second) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    SwList filter(std::function<bool(const T&)> predicate) const {
+        SwList result;
+        for (const auto& item : data_) {
+            if (predicate(item)) {
+                result.append(item);
+            }
+        }
+        return result;
+    }
+
+    void reserve(size_t capacity) {
+        data_.reserve(capacity);
+    }
+
+    size_t capacity() const {
+        return data_.capacity();
+    }
+
+
+    std::vector<T> toVector() const {
+        return data_;
+    }
+
     template<typename SeparatorType>
     std::string join(const SeparatorType& delimiter) const {
         if (data_.empty()) return "";
 
         std::ostringstream oss;
         auto it = data_.begin();
-        oss << *it; // Premier élément
+        oss << *it; // Premier ï¿½lï¿½ment
         ++it;
 
         for (; it != data_.end(); ++it) {
-            oss << delimiter << *it; // Ajout des délimiteurs
+            oss << delimiter << *it; // Ajout des dï¿½limiteurs
         }
         return oss.str();
     }
 
-    // Renvoie une copie du premier élément
+    // Renvoie une copie du premier ï¿½lï¿½ment
     T first() const {
         if (data_.empty()) {
             throw std::runtime_error("Cannot access first element of an empty container");
@@ -138,7 +224,7 @@ public:
         return data_.front(); // Retourne une copie
     }
 
-    // Renvoie une copie du dernier élément
+    // Renvoie une copie du dernier ï¿½lï¿½ment
     T last() const {
         if (data_.empty()) {
             throw std::runtime_error("Cannot access last element of an empty container");
@@ -146,7 +232,7 @@ public:
         return data_.back(); // Retourne une copie
     }
 
-    // Nouvelles fonctionnalités pour SwList
+    // Nouvelles fonctionnalitï¿½s pour SwList
     T& firstRef() {
         if (data_.empty()) {
             throw std::runtime_error("Cannot access first element of an empty container");
@@ -212,19 +298,19 @@ public:
     bool replace(size_t index, const T& value) {
         if (index < data_.size()) {
             data_[index] = value;
-            return true; // Remplacement réussi
+            return true; // Remplacement rï¿½ussi
         }
-        return false; // Remplacement échoué
+        return false; // Remplacement ï¿½chouï¿½
     }
 
     int indexOf(const T& value) const {
         auto it = std::find(data_.begin(), data_.end(), value);
-        return (it != data_.end()) ? std::distance(data_.begin(), it) : -1; // -1 si non trouvé
+        return (it != data_.end()) ? std::distance(data_.begin(), it) : -1; // -1 si non trouvï¿½
     }
 
     int lastIndexOf(const T& value) const {
         auto it = std::find(data_.rbegin(), data_.rend(), value);
-        return (it != data_.rend()) ? std::distance(data_.begin(), it.base()) - 1 : -1; // -1 si non trouvé
+        return (it != data_.rend()) ? std::distance(data_.begin(), it.base()) - 1 : -1; // -1 si non trouvï¿½
     }
 
 private:

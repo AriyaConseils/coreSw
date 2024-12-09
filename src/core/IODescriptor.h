@@ -5,7 +5,10 @@
 #include <functional>
 #include <string>
 #include <algorithm>
-#define NOMINMAX
+
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
 
 
 class IODescriptor {
@@ -16,6 +19,7 @@ public:
     virtual ~IODescriptor() {
         if (handle != INVALID_HANDLE_VALUE) {
             CloseHandle(handle);
+            handle = INVALID_HANDLE_VALUE;
         }
     }
 

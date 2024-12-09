@@ -5,11 +5,11 @@ project(SimpleWindowExample)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Ajouter l'exécutable ConsoleApplication
-add_executable(ConsoleApplication ConsoleApplication.cpp)
+# Ajouter l'exécutable GuiApplication
+add_executable(GuiApplication GuiApplication.cpp)
 
 # Lier la bibliothèque statique SwCore
-target_link_libraries(ConsoleApplication PRIVATE SwCore)
+target_link_libraries(GuiApplication PRIVATE gdiplus)
 
 # Inclure le répertoire de src/core pour les en-têtes
-target_include_directories(ConsoleApplication PRIVATE ${CMAKE_SOURCE_DIR}/src/core)
+target_include_directories(GuiApplication PRIVATE ${CMAKE_SOURCE_DIR}/src/core)

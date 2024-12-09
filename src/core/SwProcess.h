@@ -16,9 +16,21 @@ enum class ProcessFlags : DWORD {
 };
 
 
-class Process : public IODevice {
+class SwProcess : public IODevice {
 public:
-    Process(Object* parent = nullptr)
+
+    /**
+     * @brief Constructor for the SwProcess class.
+     *
+     * Initializes a new SwProcess object with an optional parent.
+     * - Sets the process and pipe handles to NULL.
+     * - Initializes the I/O descriptors (stdout, stderr, stdin) to `nullptr`.
+     * - Creates a timer to monitor the process state.
+     * - Connects the timer to the `checkProcessStatus` method for periodic process monitoring.
+     *
+     * @param parent An optional parent object for hierarchical ownership.
+     */
+    SwProcess(Object* parent = nullptr)
         : IODevice(parent), processRunning(false), hProcess(NULL), hStdOutRead(NULL), hStdErrRead(NULL), hStdInWrite(NULL) {
         stdoutDescriptor = nullptr;
         stderrDescriptor = nullptr;
@@ -27,13 +39,37 @@ public:
         connect(monitorTimer, "timeout", this, &Process::checkProcessStatus);
     }
 
-    virtual ~Process() {
+    /**
+     * @brief Destructor for the SwProcess class.
+     *
+     * Ensures the proper cleanup of resources associated with the process.
+     * - If the process is running, calls `close()` to terminate it and release associated resources.
+     */
+    virtual ~SwProcess() {
         if (isOpen()) {
             close();
         }
     }
 
-    bool start(const std::string& program, const std::vector<std::string>& arguments = {}, ProcessFlags flags = ProcessFlags::NoFlag) {
+    /**
+     * @brief Starts a new process with the specified program and arguments.
+     *
+     * Initializes and launches a new process while setting up input/output pipes.
+     * - Ensures no other process is currently running.
+     * - Creates communication pipes for standard input, output, and error streams.
+     * - Launches the process using the specified program, arguments, flags, and working directory.
+     * - Starts monitoring the process state using a timer.
+     *
+     * @param program The path to the executable to start.
+     * @param arguments A vector of arguments to pass to the executable (optional).
+     * @param flags Flags to configure the process creation (default: ProcessFlags::NoFlag).
+     * @param workingDirectory The working directory for the process (optional).
+     *
+     * @return `true` if the process started successfully, `false` otherwise.
+     */
+    bool start(const std::string& program, const std::vector<std::string>& arguments = {},
+               ProcessFlags flags = ProcessFlags::NoFlag,
+               const std::string& workingDirectory = "") {
         if (isOpen()) {
             std::cout << "Process already running!" << std::endl;
             return false;
@@ -44,7 +80,7 @@ public:
             return false;
         }
 
-        if (!startProcess(program, arguments, flags)) {
+        if (!startProcess(program, arguments, flags, workingDirectory)) {
             std::cout << "Failed to start process!" << std::endl;
             return false;
         }
@@ -56,6 +92,90 @@ public:
         return true;
     }
 
+    /**
+     * @brief Starts the process using previously set program, arguments, and working directory.
+     *
+     * Uses the stored program path, arguments, and working directory to launch the process.
+     * - Validates that the program path is set before starting.
+     * - Delegates the actual process start to the overloaded `start` method.
+     *
+     * @param flags Flags to configure the process creation (default: ProcessFlags::NoFlag).
+     *
+     * @return `true` if the process started successfully, `false` otherwise.
+     */
+    bool start(ProcessFlags flags = ProcessFlags::NoFlag) {
+        if (m_program.empty()) {
+            std::cerr << "Program is not set!" << std::endl;
+            return false;
+        }
+        return start(m_program, m_arguments, flags, m_workingDirectory);
+    }
+
+    /**
+     * @brief Sets the program path for the process.
+     *
+     * Specifies the executable file to be used when starting the process.
+     *
+     * @param program The path to the executable file.
+     */
+    void setProgram(const std::string& program) { m_program = program; }
+
+    /**
+     * @brief Retrieves the program path for the process.
+     *
+     * Returns the path to the executable file set for the process.
+     *
+     * @return A string containing the program path.
+     */
+    std::string program() const { return m_program; }
+
+    /**
+     * @brief Sets the arguments to be passed to the process.
+     *
+     * Specifies the command-line arguments that will be used when starting the process.
+     *
+     * @param arguments A vector of strings containing the arguments.
+     */
+    void setArguments(const std::vector<std::string>& arguments) { m_arguments = arguments; }
+
+    /**
+     * @brief Retrieves the arguments set for the process.
+     *
+     * Returns the command-line arguments that will be passed to the process when started.
+     *
+     * @return A vector of strings containing the arguments.
+     */
+    std::vector<std::string> arguments() const { return m_arguments; }
+
+    /**
+     * @brief Sets the working directory for the process.
+     *
+     * Specifies the directory in which the process will run.
+     *
+     * @param dir The path to the working directory.
+     */
+    void setWorkingDirectory(const std::string& dir) { m_workingDirectory = dir; }
+
+    /**
+     * @brief Retrieves the working directory set for the process.
+     *
+     * Returns the directory in which the process will execute.
+     *
+     * @return A string containing the path to the working directory.
+     */
+    std::string workingDirectory() const { return m_workingDirectory; }
+
+    /**
+     * @brief Closes the currently running process and releases associated resources.
+     *
+     * Ensures proper termination of the process and cleanup of allocated resources:
+     * - Stops monitoring timers and descriptors.
+     * - Removes standard input/output/error descriptors from IODevice.
+     * - Terminates the process and waits for it to fully stop.
+     * - Releases all process handles and emits relevant signals.
+     *
+     * @note If the process is not running, a message is displayed, and no action is taken.
+     */
     void close() override {
         if (!isOpen()) {
             std::cout << "Process not running!" << std::endl;
@@ -65,15 +185,22 @@ public:
         processRunning = false;
         m_timerDercriptor->stop();
 
-        // Fermer les pipes
-        CloseHandle(hStdOutRead);
-        CloseHandle(hStdErrRead);
-        CloseHandle(hStdInWrite);
+
+
+        // Remove descriptors from IODevice
+        // This will delete the descriptors and automatically close the associated pipe handles
+        removeDescriptor(stdoutDescriptor);
+        removeDescriptor(stderrDescriptor);
+
+        // Delete the stdin descriptor safely and set the pointer to nullptr
+        safeDelete(stdinDescriptor);
+
 
         // Terminer le processus
         TerminateProcess(hProcess, 0);
         WaitForSingleObject(hProcess, INFINITE);
         CloseHandle(hProcess);
+
 
         emit deviceClosed();
         emit processFinished();
@@ -81,20 +208,54 @@ public:
         monitorTimer->stop();
     }
 
+    /**
+     * @brief Checks if the process is currently running.
+     *
+     * Determines whether the process is open and actively running.
+     *
+     * @return `true` if the process is running, `false` otherwise.
+     */
     bool isOpen() const override {
         return processRunning;
     }
 
+    /**
+     * @brief Reads data from the standard output of the process.
+     *
+     * Reads up to the specified maximum size of data from the process's standard output.
+     *
+     * @param maxSize The maximum number of bytes to read (default: 0, which means no limit).
+     *
+     * @return A string containing the data read from the process's standard output.
+     *         Returns an empty string if the standard output descriptor is unavailable.
+     */
     std::string read(int64_t maxSize = 0) override {
         if (!stdoutDescriptor) return "";
         return stdoutDescriptor->read();
     }
 
+    /**
+     * @brief Reads data from the standard error stream of the process.
+     *
+     * Retrieves the output written to the process's standard error stream.
+     *
+     * @return A string containing the data read from the process's standard error stream.
+     *         Returns an empty string if the standard error descriptor is unavailable.
+     */
     std::string readStdErr() {
         if (!stderrDescriptor) return "";
         return stderrDescriptor->read();
     }
 
+    /**
+     * @brief Writes data to the standard input of the process.
+     *
+     * Sends the specified string to the process's standard input stream.
+     *
+     * @param data The string to write to the standard input.
+     *
+     * @return `true` if the data was successfully written, `false` if the standard input descriptor is unavailable.
+     */
     bool write(const std::string& data) override {
         if (!stdinDescriptor) return false;
         return stdinDescriptor->write(data);
@@ -102,22 +263,17 @@ public:
 
 
 public slots:
-    void checkProcessStatus() {
-        if (!processRunning) return;
 
-        DWORD exitCode;
-        if (GetExitCodeProcess(hProcess, &exitCode)) {
-            if (exitCode != STILL_ACTIVE) {
-                std::cout << "Process terminated with exit code: " << exitCode << std::endl;
-                emit processTerminated(exitCode);
-                close();
-            }
-        }
-        else {
-            std::cerr << "Failed to get process exit code: " << GetLastError() << std::endl;
-        }
-    }
-
+    /**
+     * @brief Slot to forcibly terminate the running process.
+     *
+     * Immediately stops the process by calling `TerminateProcess`.
+     * - Waits for the process to fully terminate using `WaitForSingleObject`.
+     * - Emits cleanup signals and calls `close()` to release resources.
+     * - Logs an error message if the termination fails.
+     *
+     * @note This method should be used for immediate termination without waiting for the process to finish naturally.
+     */
     void kill() {
         if (!isOpen()) {
             std::cout << "Process not running!" << std::endl;
@@ -135,6 +291,18 @@ public slots:
         }
     }
 
+    /**
+     * @brief Slot to gracefully terminate the running process.
+     *
+     * Attempts to stop the process by checking its status and sending termination signals:
+     * - If the process is still active, tries to terminate it gracefully (e.g., using `WM_CLOSE` for GUI applications).
+     * - If graceful termination fails, calls `TerminateProcess` as a fallback.
+     * - Waits for the process to fully terminate using `WaitForSingleObject`.
+     * - Emits cleanup signals and calls `close()` to release resources.
+     * - Logs the exit code if the process is already terminated.
+     *
+     * @note This method prioritizes graceful termination before resorting to forced termination.
+     */
     void terminate() {
         if (!isOpen()) {
             std::cout << "Process not running!" << std::endl;
@@ -175,6 +343,11 @@ signals:
 private:
     Timer* monitorTimer;
     bool processRunning;
+
+    std::string m_program;
+    std::vector<std::string> m_arguments;
+    std::string m_workingDirectory;
+
     HANDLE hProcess;
     HANDLE hThread;
     HANDLE hStdOutRead;
@@ -188,7 +361,24 @@ private:
     IODescriptor* stderrDescriptor;
     IODescriptor* stdinDescriptor;
 
+    /**
+     * @brief Creates pipes for process communication (stdin, stdout, and stderr).
+     *
+     * Sets up the standard input, output, and error pipes for the process:
+     * - Ensures the descriptors are not already initialized.
+     * - Uses `CreatePipe` to create communication pipes.
+     * - Configures the handles to prevent inheritance using `SetHandleInformation`.
+     * - Wraps the handles in `IODescriptor` objects for easier management and adds them to the device.
+     *
+     * @return `true` if all pipes were successfully created and configured, `false` otherwise.
+     *
+     * @note This is a private helper function used during process initialization.
+     */
     bool createPipes() {
+        if (stdoutDescriptor || stderrDescriptor || stdinDescriptor) {
+             return true;
+         }
+
         SECURITY_ATTRIBUTES saAttr;
         saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
         saAttr.bInheritHandle = TRUE;
@@ -229,20 +419,37 @@ private:
         stdinDescriptor = new IODescriptor(hStdInWrite, "StdIn");
         addDescriptor(stdoutDescriptor);
         addDescriptor(stderrDescriptor);
-
         return true;
     }
 
-
-    bool startProcess(const std::string& program, const std::vector<std::string>& arguments, ProcessFlags creationFlags = ProcessFlags::NoFlag) {
+    /**
+     * @brief Launches a new process with the specified program and arguments.
+     *
+     * Constructs the command line from the program and arguments, sets up process startup information,
+     * and creates the process using the Windows API `CreateProcessW`. Configures standard input, output,
+     * and error streams to redirect to the respective pipes.
+     *
+     * @param program The path to the executable to start.
+     * @param arguments A vector of strings representing the arguments to pass to the executable.
+     * @param creationFlags Flags to customize the process creation behavior (default: ProcessFlags::NoFlag).
+     * @param workingDirectory The directory in which the process should run (optional, defaults to the current directory).
+     *
+     * @return `true` if the process is successfully created, `false` otherwise.
+     *
+     * @note This is a private helper function used internally during process initialization.
+     */
+    bool startProcess(const std::string& program, const std::vector<std::string>& arguments,
+                      ProcessFlags creationFlags = ProcessFlags::NoFlag,
+                      const std::string& workingDirectory = "") {
         std::string command = program;
         for (const auto& arg : arguments) {
             command += " " + arg;
         }
 
         std::wstring wideCommand = std::wstring(command.begin(), command.end());
+        std::wstring wideWorkingDirectory = std::wstring(workingDirectory.begin(), workingDirectory.end());
 
-        STARTUPINFO si;
+        STARTUPINFOW si;
         PROCESS_INFORMATION pi;
 
         ZeroMemory(&si, sizeof(si));
@@ -254,8 +461,10 @@ private:
 
         ZeroMemory(&pi, sizeof(pi));
 
+        LPCWSTR lpWorkingDir = workingDirectory.empty() ? NULL : wideWorkingDirectory.c_str();
+
         // Utiliser 'creationFlags' fourni par l'appelant
-        if (!CreateProcessW(NULL, &wideCommand[0], NULL, NULL, TRUE, static_cast<DWORD>(creationFlags), NULL, NULL, &si, &pi)) {
+        if (!CreateProcessW(NULL, &wideCommand[0], NULL, NULL, TRUE, static_cast<DWORD>(creationFlags), NULL, lpWorkingDir, &si, &pi)) {
             DWORD error = GetLastError(); // Récupérer l'erreur
             std::cerr << "CreateProcess failed with error code: " << error << std::endl;
             return false;
@@ -266,6 +475,31 @@ private:
         return true;
     }
 
+private slots:
 
- 
+    /**
+     * @brief Slot to check the current status of the process.
+     *
+     * Monitors the running process to determine if it has terminated.
+     * - Retrieves the exit code of the process.
+     * - If the process has terminated, emits the `processTerminated` signal with the exit code and calls `close()` to clean up resources.
+     * - Logs an error message if unable to retrieve the process's exit code.
+     *
+     * @note This slot is typically connected to a timer for periodic status monitoring.
+     */
+    void checkProcessStatus() {
+        if (!processRunning) return;
+
+        DWORD exitCode;
+        if (GetExitCodeProcess(hProcess, &exitCode)) {
+            if (exitCode != STILL_ACTIVE) {
+                std::cout << "Process terminated with exit code: " << exitCode << std::endl;
+                emit processTerminated(exitCode);
+                close();
+            }
+        }
+        else {
+            std::cerr << "Failed to get process exit code: " << GetLastError() << std::endl;
+        }
+    }
 };

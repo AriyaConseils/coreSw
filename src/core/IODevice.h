@@ -84,12 +84,12 @@ protected:
         }
     }
 
-    void removeDescriptor(IODescriptor* descriptor) {
+    void removeDescriptor(IODescriptor* &descriptor) {
         if (!descriptor) return;
         auto it = std::remove(descriptors.begin(), descriptors.end(), descriptor);
         if (it != descriptors.end()) {
             descriptors.erase(it, descriptors.end());
-            delete descriptor; 
+            safeDelete(descriptor);
         }
     }
 

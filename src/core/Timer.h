@@ -17,7 +17,6 @@ public:
         if (timerId != -1) {
             CoreApplication::instance()->removeTimer(timerId);
         }
-        std::cout << "Timer détruit et nettoyé." << std::endl;
     }
 
     // Setter pour l'intervalle
@@ -36,7 +35,6 @@ public:
                     emit timeout();
                 }
                 }, interval);
-            std::cout << "Timer démarré avec un intervalle de " << interval/1000 << " ms." << std::endl;
         }
     }
 
@@ -53,7 +51,6 @@ public:
                 });
                 timerId = -1;
             }
-            std::cout << "Timer arrêté." << std::endl;
         }
     }
 

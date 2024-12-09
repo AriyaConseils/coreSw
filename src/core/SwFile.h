@@ -41,6 +41,21 @@ public:
         filePath_ = filePath;
     }
 
+    std::string fileName() const {
+        if (filePath_.empty()) {
+            throw std::runtime_error("Chemin du fichier non défini.");
+        }
+
+        // Trouver la position du dernier séparateur de chemin
+        size_t lastSlash = filePath_.find_last_of("/\\");
+        if (lastSlash == std::string::npos) {
+            // Pas de séparateur trouvé, tout le chemin est le nom du fichier
+            return filePath_;
+        }
+
+        // Retourner la partie après le dernier séparateur
+        return filePath_.substr(lastSlash + 1);
+    }
 
     // Ouvrir un fichier
     bool open(OpenMode mode) {

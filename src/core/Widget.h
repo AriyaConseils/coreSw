@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Object.h"
+#include "SwWidgetInterface.h"
 #include <iostream>
 #include <vector>
 #include <gdiplus.h>
@@ -125,7 +125,7 @@ private:
 
 
 // Classe Widget héritant de Object, simulant QWidget
-class Widget : public Object {
+class Widget : public SwWidgetInterface {
 
     SW_OBJECT(Widget, Object)
 
@@ -182,7 +182,7 @@ class Widget : public Object {
             break;
         }
     }
-    CUSTOM_PROPERTY(SwFont, Font, SwFont()) {
+    CUSTOM_OVERRIDE_PROPERTY(SwFont, Font, SwFont()) {
         update();
     }
 
@@ -193,7 +193,7 @@ class Widget : public Object {
 
 public:
     Widget(Widget* parent = nullptr)
-        : Object(parent), width(100), height(100), x(0), y(0), m_style(new SwStyle()) {
+        : SwWidgetInterface(parent), width(100), height(100), x(0), y(0), m_style(new SwStyle()) {
         REGISTER_PROPERTY(Font);
         REGISTER_PROPERTY(Cursor);
         REGISTER_PROPERTY(Enable);
@@ -218,19 +218,19 @@ public:
     }
 
     // Méthode pour afficher le widget
-    virtual void show() {
+    virtual void show() override {
         std::cout << "Widget montré (" << x << ", " << y << ") taille: (" << width << "x" << height << ")" << std::endl;
         setVisible(true);
     }
 
     // Méthode pour cacher le widget
-    virtual void hide() {
+    virtual void hide() override {
         std::cout << "Widget caché" << std::endl;
         setVisible(false);
     }
 
     // Méthode pour redessiner le widget
-    virtual void update() {
+    virtual void update() override {
         if (!getVisible()) {
             return;
         }
@@ -243,7 +243,7 @@ public:
     }
 
     // Méthode pour déplacer le widget
-    virtual void move(int newX, int newY) {
+    virtual void move(int newX, int newY) override {
         x = newX;
         y = newY;
         std::cout << "Widget déplacé à (" << x << ", " << y << ")" << std::endl;
@@ -258,7 +258,7 @@ public:
     }
 
     // Méthode pour redimensionner le widget
-    virtual void resize(int newWidth, int newHeight) {
+    virtual void resize(int newWidth, int newHeight) override {
         width = newWidth;
         height = newHeight;
         ResizeEvent event(width, height);
@@ -266,7 +266,7 @@ public:
         emit resized(width, height);
     }
 
-    RECT getRect() {
+    RECT getRect() const override {
         RECT rectVal;
         rectVal.left = x;
         rectVal.top = y;
@@ -300,7 +300,7 @@ public:
 
 
 
-    StyleSheet* getToolSheet() {
+    StyleSheet* getToolSheet() override {
         return &m_ComplexSheet;
     }
 
@@ -317,7 +317,7 @@ protected:
         Object::newParentEvent(parent);
     }
 
-    virtual void paintEvent(PaintEvent* event) {
+    virtual void paintEvent(PaintEvent* event) override {
         if (!getVisible()) {
             return;
         }
@@ -348,7 +348,7 @@ protected:
     }
 
 
-    virtual void keyPressEvent(KeyEvent* event) {
+    virtual void keyPressEvent(KeyEvent* event) override {
         std::cout << "Widget redimensionné à (" << std::endl;
 
         for (Widget* child : findChildren<Widget>()) {
@@ -373,7 +373,7 @@ protected:
 
 
     // Gestion de l'événement de clic de souris
-    virtual void mousePressEvent(MouseEvent* event) {
+    virtual void mousePressEvent(MouseEvent* event) override {
         // Trouver l'enfant le plus profond sous le pointeur de la souris
         Widget* targetWidget = getChildUnderCursor(event->x(), event->y());
         if (targetWidget && targetWidget->getFocusPolicy() != FocusPolicyEnum::NoFocus) {
@@ -404,7 +404,7 @@ protected:
 
 
     // Gestion de l'événement de clic de souris
-    virtual void mouseReleaseEvent(MouseEvent* event) {
+    virtual void mouseReleaseEvent(MouseEvent* event) override {
         for (Widget* child : findChildren<Widget>()) {
             if (event->isAccepted()) {
                 return;
@@ -413,7 +413,7 @@ protected:
         }
     }
 
-    virtual void mouseDoubleClickEvent(MouseEvent* event) {
+    virtual void mouseDoubleClickEvent(MouseEvent* event) override {
         std::cout << "Mouse double-clicked at (" << event->x() << ", " << event->y() << ") in MainWindow" << std::endl;
         for (Widget* child : findChildren<Widget>()) {
             if (event->isAccepted()) {
@@ -426,7 +426,7 @@ protected:
     }
 
     // Gestion de l'événement de déplacement de la souris
-    virtual void mouseMoveEvent(MouseEvent* event) {
+    virtual void mouseMoveEvent(MouseEvent* event) override {
         if (!getVisible()) {
             return;
         }
