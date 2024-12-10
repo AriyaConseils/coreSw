@@ -1,17 +1,14 @@
 #pragma once
 
-
-
-#include "Widget.h"
+#include "SwWidget.h"
 #include <string>
-#include <iostream>
 #include <algorithm> 
 #include "Timer.h"
 
 // echo mode ●●●●●●●●●●
-class LineEdit : public Widget {
+class LineEdit : public SwWidget {
 
-    SW_OBJECT(LineEdit, Widget)
+    SW_OBJECT(LineEdit, SwWidget)
 
     CUSTOM_PROPERTY(std::string, Text, "") {
         cursorPos = getText().size();
@@ -54,8 +51,8 @@ class LineEdit : public Widget {
     }
 
 public:
-    LineEdit(const std::string& placeholderText = "", Widget* parent = nullptr)
-        : Widget(parent), cursorPos(0),
+    LineEdit(const std::string& placeholderText = "", SwWidget* parent = nullptr)
+        : SwWidget(parent), cursorPos(0),
           selectionStart(0), selectionEnd(0), isSelecting(false) {
         width = 300;
         height = 30;
@@ -89,8 +86,8 @@ public:
             }));
     }
 
-    LineEdit(Widget* parent = nullptr)
-        : Widget(parent), cursorPos(0),
+    LineEdit(SwWidget* parent = nullptr)
+        : SwWidget(parent), cursorPos(0),
         selectionStart(0), selectionEnd(0), isSelecting(false) {
 
         std::string css = R"(
@@ -127,7 +124,7 @@ public:
 
     // Redéfinir la méthode paintEvent pour dessiner le champ de texte
     virtual void paintEvent(PaintEvent* event) override {
-        Widget::paintEvent(event);
+        SwWidget::paintEvent(event);
 
         HDC hdc = event->context();
 
@@ -365,7 +362,7 @@ public:
             this->setFocus(false);
             selectionStart = selectionEnd = 0;
         }
-        Widget::mousePressEvent(event);
+        SwWidget::mousePressEvent(event);
     }
 
     virtual void mouseDoubleClickEvent(MouseEvent* event) override {
@@ -392,7 +389,7 @@ public:
         else {
             setCursor(CursorType::IBeam);
         }
-        Widget::mouseMoveEvent(event);
+        SwWidget::mouseMoveEvent(event);
     }
 
     // Terminer la sélection à la libération de la souris
@@ -402,7 +399,7 @@ public:
         }
         isSelecting = false;
         update();
-        Widget::mouseReleaseEvent(event);
+        SwWidget::mouseReleaseEvent(event);
     }
 
 

@@ -28,6 +28,19 @@ public:
     SwList& operator=(const SwList& other) = default;
     SwList& operator=(SwList&& other) noexcept = default;
 
+    // Déclaration explicite des types d'itérateurs
+    typedef typename std::vector<T>::iterator iterator;
+    typedef typename std::vector<T>::const_iterator const_iterator;
+
+    // Itérateurs existants
+    iterator begin() { return data_.begin(); }
+    iterator end() { return data_.end(); }
+    const_iterator begin() const { return data_.begin(); }
+    const_iterator end() const { return data_.end(); }
+
+    const_iterator cbegin() const { return data_.cbegin(); }
+    const_iterator cend() const { return data_.cend(); }
+
     SwList& operator<<(const T& value) {
         append(value);
         return *this;
@@ -134,22 +147,6 @@ public:
         return defaultValue;
     }
 
-    // It�rateurs
-    typename std::vector<T>::iterator begin() {
-        return data_.begin();
-    }
-
-    typename std::vector<T>::iterator end() {
-        return data_.end();
-    }
-
-    typename std::vector<T>::const_iterator begin() const {
-        return data_.begin();
-    }
-
-    typename std::vector<T>::const_iterator end() const {
-        return data_.end();
-    }
 
     const T* data() const {
         return data_.data();

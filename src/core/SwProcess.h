@@ -36,7 +36,7 @@ public:
         stderrDescriptor = nullptr;
         stdinDescriptor = nullptr;
         monitorTimer = new Timer(500);
-        connect(monitorTimer, "timeout", this, &Process::checkProcessStatus);
+        connect(monitorTimer, "timeout", this, &SwProcess::checkProcessStatus);
     }
 
     /**

@@ -21,14 +21,9 @@ int main() {
     MainWindow mainWindow;
     mainWindow.show();
 
-
-
-
-    Object::connect(&mainWindow, SIGNAL(resized), std::function<void(int, int)>([&](int width, int height) {
+    Object::connect(&mainWindow, SIGNAL(resized), [&](int width, int height) {
         std::cout << "Fenêtre -------> redimensionnée: " << width << "x" << height << std::endl;
-    }));
-
-
+    });
 
     // Taille de la grille et position de départ
     int startX = 50;

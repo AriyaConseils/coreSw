@@ -1,17 +1,13 @@
 #pragma once
-
-#include "Widget.h"
 #include <windows.h>
-#include <string>
-#include <iostream>
-
 #include "Sw.h"
-#include "SwFont.h"
+
+#include "SwWidget.h"
 #include "SwString.h"
 
-class Label : public Widget {
+class Label : public SwWidget {
 
-    SW_OBJECT(Label, Widget)
+    SW_OBJECT(Label, SwWidget)
 
     CUSTOM_PROPERTY(SwString, Text, "Label") {
         update();
@@ -22,8 +18,8 @@ class Label : public Widget {
     }
 
 public:
-    Label(const SwString& text, Widget* parent = nullptr)
-        : Widget(parent) {
+    Label(const SwString& text, SwWidget* parent = nullptr)
+        : SwWidget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut
         REGISTER_PROPERTY(Text);
@@ -43,8 +39,8 @@ public:
         this->setText(text);
     }
 
-    Label(Widget* parent = nullptr)
-        : Widget(parent) {
+    Label(SwWidget* parent = nullptr)
+        : SwWidget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut
 
@@ -82,15 +78,15 @@ public:
     }
 
     virtual void mouseMoveEvent(MouseEvent* event) override {
-        Widget::mouseMoveEvent(event);
+        SwWidget::mouseMoveEvent(event);
     }
 
     virtual void mousePressEvent(MouseEvent* event) override {
-        Widget::mousePressEvent(event);
+        SwWidget::mousePressEvent(event);
     }
 
     virtual void mouseReleaseEvent(MouseEvent* event) override {
-        Widget::mouseReleaseEvent(event);
+        SwWidget::mouseReleaseEvent(event);
     }
 };
 

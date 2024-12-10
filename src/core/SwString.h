@@ -11,7 +11,8 @@
 #include "SwList.h"
 #include "SwCrypto.h"
 #include <cctype>
-
+#include <unordered_map>
+#include <stdexcept>
 
 class SwString {
 public:
@@ -432,6 +433,18 @@ public:
         return SwString(lower);
     }
 
+    static SwString fromWCharArray(const wchar_t* wideStr) {
+        if (!wideStr) {
+            return SwString();
+        }
+        int bufferSize = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
+        if (bufferSize <= 0) {
+            return SwString();
+        }
+        std::string utf8Str(bufferSize - 1, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, &utf8Str[0], bufferSize, nullptr, nullptr);
+        return SwString(utf8Str);
+    }
 
     SwString& replace(const SwString& oldSub, const SwString& newSub) {
         size_t pos = 0;
@@ -443,11 +456,21 @@ public:
     }
 
     SwString arg(const SwString& value) const {
-        SwString result(*this);
-        size_t pos = result.data_.find("%1");
-        if (pos != std::string::npos) {
-            result.data_.replace(pos, 2, value.data_);
+        SwString result(*this); // Copie de la chaîne actuelle
+
+        // Trouver le premier placeholder "%N"
+        size_t start = result.data_.find('%');
+        while (start != std::string::npos) {
+            // Vérifier si c'est un placeholder valide ("%N" où N est un chiffre)
+            if (start + 1 < result.data_.size() && std::isdigit(result.data_[start + 1])) {
+                // Remplacer le placeholder par la valeur
+                result.data_.replace(start, 2, value.data_);
+                break; // Un seul remplacement par appel à `arg`
+            }
+            // Chercher le placeholder suivant
+            start = result.data_.find('%', start + 1);
         }
+
         return result;
     }
 
@@ -477,14 +500,23 @@ public:
         return SwString(result);
     }
 
-    SwString mid(size_t pos, size_t len = std::string::npos) const {
-        if (pos >= data_.size()) return SwString("");
+    SwString mid(int pos, int len = -1) const {
+        if (pos < 0 || pos >= static_cast<int>(data_.size())) {
+            return SwString("");
+        }
+
+        if (len < 0 || pos + len > static_cast<int>(data_.size())) {
+            len = static_cast<int>(data_.size()) - pos;
+        }
+
         return SwString(data_.substr(pos, len));
     }
 
-    SwString left(size_t n) const {
-        return SwString(data_.substr(0, n));
+    SwString left(int n) const {
+        if (n < 0) { n = 0; }
+        return SwString(data_.substr(0, static_cast<size_t>(n)));
     }
+
 
     SwString right(size_t n) const {
         if (n >= data_.size()) return *this;
@@ -505,6 +537,117 @@ public:
         return SwString(1, data_.back()); // Cr�e une SwString avec le dernier caract�re
     }
 
+    SwString& append(const SwString& other) {
+        data_ += other.data_; // Ajouter `other.data_` à la fin de `data_`
+        return *this;
+    }
+
+    SwString& append(const std::string& str) {
+        data_ += str; // Ajouter `str` à la fin de `data_`
+        return *this;
+    }
+
+    SwString& append(const char* cstr) {
+        data_ += std::string(cstr); // Ajouter la chaîne C à la fin de `data_`
+        return *this;
+    }
+
+    SwString& append(char ch) {
+        data_ += ch; // Ajouter le caractère à la fin de `data_`
+        return *this;
+    }
+
+    SwString& prepend(const SwString& other) {
+        data_ = other.data_ + data_; // Préfixer `data_` avec `other.data_`
+        return *this;                // Retourner l'objet courant pour permettre le chaînage
+    }
+
+    SwString& prepend(const std::string& str) {
+        data_ = str + data_; // Préfixer `data_` avec `str`
+        return *this;
+    }
+
+    SwString& prepend(const char* cstr) {
+        data_ = std::string(cstr) + data_; // Préfixer `data_` avec la chaîne C
+        return *this;
+    }
+
+    SwString& prepend(char ch) {
+        data_.insert(data_.begin(), ch); // Insérer le caractère au début
+        return *this;
+    }
+
+
+    const char* toUtf8() const {
+        return data_.c_str();
+    }
+
+    const wchar_t* toWChar() const {
+        std::wstring wideString(data_.begin(), data_.end());
+        return wideString.c_str();
+    }
+
+    std::wstring toStdWString() const {
+        return std::wstring(data_.begin(), data_.end());
+    }
+
+
+    const char* toLatin1() const {
+        static std::string latin1String;
+        latin1String.clear();
+
+        for (char32_t c : data_) {
+            // Vérification si c'est un caractère standard Latin1
+            if (c <= 0xFF) {
+                latin1String += static_cast<char>(c); // Ajout direct pour les caractères standards
+                continue;
+            }
+
+            // Vérification si c'est un Unicode valide (0x0000 à 0x10FFFF)
+            if (c > 0x00FF && c <= 0x10FFFF) {
+                latin1String += unicodeToLatin1(c);
+            } else {
+                latin1String += '?';
+            }
+        }
+
+        return latin1String.c_str();
+    }
+
+
+
+    const char* data() const {
+        return data_.data();
+    }
+
+    char* data() {
+        return &data_[0]; // Attention : modifie directement la donnée
+    }
+
+    char* begin() {
+        return &data_[0];
+    }
+
+    char* end() {
+        return &data_[0] + data_.size();
+    }
+
+    const char* begin() const {
+        return data_.data();
+    }
+
+    const char* end() const {
+        return data_.data() + data_.size();
+    }
+
+    size_t utf16Size() const {
+        return std::wstring(data_.begin(), data_.end()).size();
+    }
+
+    size_t utf32Size() const {
+        return std::u32string(data_.begin(), data_.end()).size();
+    }
+
 #ifdef QT_CORE_LIB
     friend QDebug operator<<(QDebug debug, const SwString& str) {
         debug.nospace() << str.toStdString().c_str();
@@ -514,6 +657,48 @@ public:
 
 private:
     std::string data_;
+    char unicodeToLatin1(char32_t unicode) const {
+        static const std::unordered_map<char32_t, char> unicodeToLatin1Table = {
+            {0x0100, 'A'}, {0x0101, 'a'}, {0x0102, 'A'}, {0x0103, 'a'}, {0x0104, 'A'}, {0x0105, 'a'}, // Ā, ā, Ă, ă, Ą, ą
+            {0x0106, 'C'}, {0x0107, 'c'}, {0x0108, 'C'}, {0x0109, 'c'}, {0x010A, 'C'}, {0x010B, 'c'}, // Ć, ć, Ĉ, ĉ, Ċ, ċ
+            {0x010C, 'C'}, {0x010D, 'c'}, {0x010E, 'D'}, {0x010F, 'd'}, {0x0110, 'D'}, {0x0111, 'd'}, // Č, č, Ď, ď, Đ, đ
+            {0x0112, 'E'}, {0x0113, 'e'}, {0x0114, 'E'}, {0x0115, 'e'}, {0x0116, 'E'}, {0x0117, 'e'}, // Ē, ē, Ĕ, ĕ, Ė, ė
+            {0x0118, 'E'}, {0x0119, 'e'}, {0x011A, 'E'}, {0x011B, 'e'}, {0x011C, 'G'}, {0x011D, 'g'}, // Ę, ę, Ě, ě, Ĝ, ĝ
+            {0x011E, 'G'}, {0x011F, 'g'}, {0x0120, 'G'}, {0x0121, 'g'}, {0x0122, 'G'}, {0x0123, 'g'}, // Ğ, ğ, Ġ, ġ, Ģ, ģ
+            {0x0124, 'H'}, {0x0125, 'h'}, {0x0126, 'H'}, {0x0127, 'h'}, {0x0128, 'I'}, {0x0129, 'i'}, // Ĥ, ĥ, Ħ, ħ, Ĩ, ĩ
+            {0x012A, 'I'}, {0x012B, 'i'}, {0x012C, 'I'}, {0x012D, 'i'}, {0x012E, 'I'}, {0x012F, 'i'}, // Ī, ī, Ĭ, ĭ, Į, į
+            {0x0130, 'I'}, {0x0131, 'i'}, {0x0132, 'I'}, {0x0133, 'i'}, {0x0134, 'J'}, {0x0135, 'j'}, // İ, ı, Ĳ, ĳ, Ĵ, ĵ
+            {0x0136, 'K'}, {0x0137, 'k'}, {0x0138, 'k'}, {0x0139, 'L'}, {0x013A, 'l'}, {0x013B, 'L'}, // Ķ, ķ, ĸ, Ĺ, ĺ, Ļ
+            {0x013C, 'l'}, {0x013D, 'L'}, {0x013E, 'l'}, {0x013F, 'L'}, {0x0140, 'l'}, {0x0141, 'L'}, // ļ, Ľ, ľ, Ŀ, ŀ, Ł
+            {0x0142, 'l'}, {0x0143, 'N'}, {0x0144, 'n'}, {0x0145, 'N'}, {0x0146, 'n'}, {0x0147, 'N'}, // ł, Ń, ń, Ņ, ņ, Ň
+            {0x0148, 'n'}, {0x0149, 'n'}, {0x014A, 'N'}, {0x014B, 'n'}, {0x014C, 'O'}, {0x014D, 'o'}, // ň, ŉ, Ŋ, ŋ, Ō, ō
+            {0x014E, 'O'}, {0x014F, 'o'}, {0x0150, 'O'}, {0x0151, 'o'}, {0x0152, 'O'}, {0x0153, 'o'}, // Ŏ, ŏ, Ő, ő, Œ, œ
+            {0x0154, 'R'}, {0x0155, 'r'}, {0x0156, 'R'}, {0x0157, 'r'}, {0x0158, 'R'}, {0x0159, 'r'}, // Ŕ, ŕ, Ŗ, ŗ, Ř, ř
+            {0x015A, 'S'}, {0x015B, 's'}, {0x015C, 'S'}, {0x015D, 's'}, {0x015E, 'S'}, {0x015F, 's'}, // Ś, ś, Ŝ, ŝ, Ş, ş
+            {0x0160, 'S'}, {0x0161, 's'}, {0x0162, 'T'}, {0x0163, 't'}, {0x0164, 'T'}, {0x0165, 't'}, // Š, š, Ţ, ţ, Ť, ť
+            {0x0166, 'T'}, {0x0167, 't'}, {0x0168, 'U'}, {0x0169, 'u'}, {0x016A, 'U'}, {0x016B, 'u'}, // Ŧ, ŧ, Ũ, ũ, Ū, ū
+            {0x016C, 'U'}, {0x016D, 'u'}, {0x016E, 'U'}, {0x016F, 'u'}, {0x0170, 'U'}, {0x0171, 'u'}, // Ŭ, ŭ, Ů, ů, Ű, ű
+            {0x0172, 'U'}, {0x0173, 'u'}, {0x0174, 'W'}, {0x0175, 'w'}, {0x0176, 'Y'}, {0x0177, 'y'}, // Ų, ų, Ŵ, ŵ, Ŷ, ŷ
+            {0x0178, 'Y'}, {0x0179, 'Z'}, {0x017A, 'z'}, {0x017B, 'Z'}, {0x017C, 'z'}, {0x017D, 'Z'}, // Ÿ, Ź, ź, Ż, ż, Ž
+            {0x017E, 'z'}, {0x017F, 's'}, {0x0180, 'b'}, {0x0181, 'B'}, {0x0182, 'B'}, {0x0183, 'b'}, // ž, ſ, ƀ, Ɓ, Ƃ, ƃ
+            {0x0186, 'C'}, {0x0187, 'C'}, {0x0188, 'c'}, {0x0189, 'D'}, {0x018A, 'D'}, {0x018B, 'D'}, // Ɔ, Ƈ, ƈ, Ɖ, Ɗ, Ƌ
+            {0x018C, 'd'}, {0x0192, 'f'}, {0x0193, 'G'}, {0x0194, 'G'}, {0x0195, 'h'}, {0x0197, 'I'}, // ƌ, ƒ, Ɠ, Ɣ, ƕ, Ɨ
+            {0x0198, 'K'}, {0x0199, 'k'}, {0x019A, 'l'}, {0x019B, 'l'}, {0x019C, 'M'}, {0x019D, 'N'}, // Ƙ, ƙ, ƚ, ƛ, Ɯ, Ɲ
+            {0x019E, 'n'}, {0x019F, 'O'}, {0x01A0, 'O'}, {0x01A1, 'o'}, {0x01A2, 'Q'}, {0x01A3, 'q'}, // ƞ, Ɵ, Ơ, ơ, Ƣ, ƣ
+            {0x01A4, 'P'}, {0x01A5, 'p'}, {0x01A6, 'R'}, {0x01A7, 'S'}, {0x01A8, 's'}, {0x01A9, 'T'}, // Ƥ, ƥ, Ʀ, Ƨ, ƨ, Ʃ
+            {0x01AA, 't'}, {0x01AB, 't'}, {0x01AC, 'T'}, {0x01AD, 't'}, {0x01AE, 'T'}, {0x01AF, 'U'}, // ƪ, ƫ, Ƭ, ƭ, Ʈ, Ư
+            {0x01B0, 'u'}, {0x01B1, 'V'}, {0x01B2, 'Y'}, {0x01B3, 'Y'}, {0x01B4, 'y'}, {0x01B5, 'Z'}, // ư, Ʋ, Ƴ, ƴ, Ƶ, ƶ
+            // Ajoutez d'autres caractères Unicode si nécessaire
+        };
+
+        auto it = unicodeToLatin1Table.find(unicode);
+        if (it != unicodeToLatin1Table.end()) {
+            return it->second; // Retourner le caractère converti
+        }
+
+        // Retourner '?' si le caractère n'est pas trouvé
+        return '?';
+    }
 };
 
 

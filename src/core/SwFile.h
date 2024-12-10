@@ -250,8 +250,31 @@ public:
         return result;
     }
 
+    static bool copy(const std::string& source, const std::string& destination, bool overwrite = true) {
+        // Convertir les chemins en wide strings pour l'API Windows
+        std::wstring sourceWide(source.begin(), source.end());
+        std::wstring destinationWide(destination.begin(), destination.end());
 
-    static bool copy(const std::string& source, const std::string& destination, bool nonBlocking = true) {
+        // Utiliser la fonction CopyFile pour effectuer la copie
+        if (!CopyFileW(sourceWide.c_str(), destinationWide.c_str(), !overwrite)) {
+            DWORD error = GetLastError();
+
+            // Afficher un message d'erreur en cas de problème
+            if (error == ERROR_FILE_NOT_FOUND) {
+                std::cerr << "Source file not found: " << source << std::endl;
+            } else if (error == ERROR_ACCESS_DENIED) {
+                std::cerr << "Access denied for destination file: " << destination << std::endl;
+            } else {
+                std::cerr << "Failed to copy file. Error code: " << error << std::endl;
+            }
+
+            return false;
+        }
+        return true;
+    }
+
+    static bool copyByChunk(const std::string& source, const std::string& destination,
+                            bool nonBlocking = true, int chunkSize = 1024) {
         // Vérifier si le fichier source existe
         std::ifstream srcStream(source, std::ios::binary);
         if (!srcStream.is_open()) {
@@ -279,17 +302,20 @@ public:
             return false;
         }
 
+        // Utiliser le tas pour le buffer
+        size_t bufferSize = chunkSize * 1024;
+        auto buffer = std::make_unique<char[]>(bufferSize); // Allocation sur le tas
+
         // Copier par blocs
-        constexpr size_t bufferSize = 1024 * 1024; // 1 Mo
-        char buffer[bufferSize];
         while (true) {
-            srcStream.read(buffer, bufferSize); // Lire un bloc
+            srcStream.read(buffer.get(), bufferSize); // Lire un bloc
             std::streamsize bytesRead = srcStream.gcount(); // Obtenir le nombre d'octets lus
             if (bytesRead == 0) {
                 break; // Rien à lire, fin de la boucle
             }
-            if(nonBlocking) CoreApplication::instance()->processEvent();
-            destStream.write(buffer, bytesRead);
+            if (nonBlocking) { CoreApplication::instance()->processEvent(); }
+
+            destStream.write(buffer.get(), bytesRead); // Écriture des données
         }
 
         if (!destStream.good()) {
@@ -298,6 +324,74 @@ public:
         }
         return true;
     }
+
+
+    bool copyByChunk(const std::string& destination, bool nonBlocking = true, int chunkSize = 1024) {
+        if (filePath_.empty()) {
+            std::cerr << "Source file path is not set." << std::endl;
+            return false;
+        }
+
+        // Vérifier si le fichier source existe
+        std::ifstream srcStream(filePath_, std::ios::binary);
+        if (!srcStream.is_open()) {
+            std::cerr << "Failed to open source file: " << filePath_ << std::endl;
+            return false;
+        }
+
+        // Vérifier si la destination est un répertoire
+        std::string finalDestination = destination;
+        struct stat info;
+        if (stat(destination.c_str(), &info) == 0 && (info.st_mode & S_IFDIR)) {
+            size_t lastSlash = filePath_.find_last_of("/\\");
+            std::string fileName = (lastSlash == std::string::npos) ? filePath_ : filePath_.substr(lastSlash + 1);
+
+            if (destination.back() != '/' && destination.back() != '\\') {
+                finalDestination += "/";
+            }
+            finalDestination += fileName;
+        }
+
+        // Ouvrir le fichier de destination
+        std::ofstream destStream(finalDestination, std::ios::binary | std::ios::trunc);
+        if (!destStream.is_open()) {
+            std::cerr << "Failed to open destination file: " << finalDestination << std::endl;
+            return false;
+        }
+
+        // Utiliser un buffer alloué sur le tas
+        size_t bufferSize = chunkSize * 1024;
+        auto buffer = std::make_unique<char[]>(bufferSize);
+
+        // Copier par blocs
+        while (true) {
+            srcStream.read(buffer.get(), bufferSize); // Lire un bloc
+            std::streamsize bytesRead = srcStream.gcount(); // Obtenir le nombre d'octets lus
+            if (bytesRead == 0) {
+                break; // Rien à lire, fin de la boucle
+            }
+
+            // Écriture dans le fichier destination
+            destStream.write(buffer.get(), bytesRead);
+            if (!destStream.good()) {
+                std::cerr << "Write error occurred during file copy to: " << finalDestination << std::endl;
+                return false;
+            }
+
+            if (nonBlocking) { CoreApplication::instance()->processEvent(); }
+        }
+
+        // Vérifier si tout est bien écrit
+        if (!destStream.good()) {
+            std::cerr << "Error occurred during file copy from " << filePath_ << " to " << finalDestination << std::endl;
+            return false;
+        }
+
+        std::cout << "File successfully copied from " << filePath_ << " to " << finalDestination << std::endl;
+        return true;
+    }
+
+
 
     // Lire les métadonnées d'un fichier
     bool getFileMetadata(std::time_t& creationTime, std::time_t& lastAccessTime, std::time_t& lastWriteTime) {
@@ -458,6 +552,7 @@ public:
         }
         return checksum;
     }
+
 signals:
     DECLARE_SIGNAL(fileChanged, const std::string&);
 

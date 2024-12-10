@@ -1,16 +1,12 @@
 #pragma once
 
+#include "CoreApplication.h"
+
 #include <iostream>
-#include <thread>
 #include <map>
 #include <vector>
-#include <queue>
-#include <chrono>
 #include <functional>
-#include <condition_variable>
-#include <mutex>
 #include <future>
-#include "CoreApplication.h"
 #include "SwAny.h"
 
 
@@ -185,7 +181,7 @@ private:
 template <typename... Args>
 class SlotFunction : public ISlot<void, Args...> {
 public:
-    SlotFunction(std::function<void(Args...)> func) : func(func) {}
+    explicit SlotFunction(std::function<void(Args...)> func) : func(std::move(func)) {}
 
     void invoke(void*, Args... args) override {
         func(args...);
@@ -200,6 +196,22 @@ private:
 };
 
 
+// Implémentation pour vérifier si une fonction ou lambda est invocable
+template <typename Func, typename... Args>
+class is_invocable {
+private:
+    template <typename F>
+    static auto test(int) -> decltype(std::declval<F>()(std::declval<Args>()...), std::true_type());
+
+    template <typename>
+    static auto test(...) -> std::false_type;
+
+public:
+    static constexpr bool value = decltype(test<Func>(0))::value;
+};
+
+// Macro pour simplifier l'utilisation
+#define IS_INVOCABLE(Func, ...) is_invocable<Func, __VA_ARGS__>::value
 
 
 
@@ -454,6 +466,74 @@ public:
     static void connect(Sender* sender, const SwString& signalName, std::function<void(Args...)> func, ConnectionType type = DirectConnection) {
         ISlot<void, Args...>* newSlot = new SlotFunction<Args...>(func);
         sender->addConnection(signalName, newSlot, type);
+    }
+
+    /**
+     * @brief Connects a signal to a lambda function.
+     *
+     * Establishes a connection between a signal emitted by the sender and a lambda function.
+     *
+     * @tparam Sender The type of the sender object emitting the signal.
+     * @tparam Func The type of the lambda function to connect.
+     * @param sender Pointer to the sender object emitting the signal.
+     * @param signalName The name of the signal to connect.
+     * @param func The lambda to execute when the signal is emitted.
+     * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection).
+     *             Default is DirectConnection.
+     */
+    template <typename Sender, typename Func>
+    static void connect(Sender* sender, const SwString& signalName, Func&& func, ConnectionType type = DirectConnection) {
+        // Convert Func en std::function
+        using FuncType = decltype(func);
+        auto wrappedFunc = std::function<void(int, int)>(std::forward<Func>(func));
+
+        // Créer SlotFunction
+        auto* slot = new SlotFunction<int, int>(std::move(wrappedFunc));
+
+        // Ajouter la connexion
+        sender->addConnection(signalName, slot, type);
+    }
+
+    /**
+     * @brief Connects a signal to a slot using modern pointer-to-member function syntax.
+     *
+     * This method aims to establish a connection between a signal and a slot in a type-safe way.
+     * It uses pointer-to-member functions to explicitly define the signal and slot connections.
+     * Note: This implementation is under development and may not work as expected in all cases.
+     *
+     * @tparam Sender The type of the sender object emitting the signal.
+     * @tparam Receiver The type of the receiver object handling the signal.
+     * @tparam SignalArgs The argument types of the signal.
+     * @tparam SlotArgs The argument types of the slot.
+     * @param sender Pointer to the sender object emitting the signal.
+     * @param signal The pointer-to-member function representing the signal.
+     * @param receiver Pointer to the receiver object handling the signal.
+     * @param slot The pointer-to-member function representing the slot.
+     * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection).
+     *             Default is DirectConnection.
+     *
+     * @note This function is designed for modern signal-slot connections but requires further refinement to handle
+     *       cases where Sender or Receiver are derived classes or when argument types do not match exactly.
+     */
+    template<typename Sender, typename Receiver, typename... SignalArgs, typename... SlotArgs>
+    static void connect(
+        Sender* sender,
+        void (Sender::*signal)(SignalArgs...),
+        Receiver* receiver,
+        void (Receiver::*slot)(SlotArgs...),
+        ConnectionType type = DirectConnection
+        ) {
+
+        // // Cast du signal pour gérer le cas où Sender est une classe de base
+        // auto castedSignal = static_cast<void (Sender::*)(SignalArgs...)>(signal);
+
+        // // Création d'un slot adapté
+        // ISlot<Receiver, SlotArgs...>* newSlot = new SlotMember<Receiver, SlotArgs...>(receiver, slot);
+
+        // SwString signalName = signalNameFromPointer(castedSignal);
+
+        // // Ajout de la connexion
+        // sender->addConnection(signalName, newSlot, type);
     }
 
     /**
@@ -781,6 +861,31 @@ protected:
         }
         return true;
     }
+
+    /**
+     * @brief Attempts to extract the name of a signal from a pointer-to-member function.
+     *
+     * This function uses `typeid` to deduce the type information of the signal. It aims to
+     * return the signal's name as a string. However, this implementation does not provide
+     * a reliable or accurate signal name in its current state.
+     *
+     * @tparam Signal The type of the signal pointer.
+     * @param signal The pointer-to-member function representing the signal.
+     * @return SwString The deduced signal name (currently unreliable).
+     *
+     * @note This implementation is incomplete. The returned name is derived from
+     *       `typeid`, which includes mangled type information and does not
+     *       correspond to the actual signal name. Further refinement is needed to
+     *       handle demangling or mapping to human-readable names.
+     */
+    template <typename Signal>
+    static SwString signalNameFromPointer(Signal signal) {
+        // Extraire le nom de la méthode membre
+        std::string fullName = typeid(signal).name();
+        // Nettoyer ou adapter si nécessaire (selon vos conventions)
+        return SwString(fullName.c_str());
+    }
+
 
 
     std::map<SwString, std::function<void(void*)>> propertySetterMap;

@@ -163,7 +163,7 @@ public:
 
     // Rétablir l'origine de la vue après une transformation
     void resetTransform() {
-        SetGraphicsMode(hdc, GM_COMPATIBLE);
+        // SetGraphicsMode(hdc, GM_COMPATIBLE);
         XFORM identity = { 1, 0, 0, 1, 0, 0 };
         SetWorldTransform(hdc, &identity);
     }

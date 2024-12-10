@@ -34,7 +34,7 @@ public:
         // Normaliser le chemin
         std::wstring normalizedPath = normalizePath(path);
 
-        // Vérifier les attributs du chemin
+        // Vï¿½rifier les attributs du chemin
         DWORD attributes = GetFileAttributesW(normalizedPath.c_str());
         return (attributes != INVALID_FILE_ATTRIBUTES);
     }
@@ -48,27 +48,27 @@ public:
         // Convertir le chemin en Unicode (UTF-16)
         std::wstring wPath(path.begin(), path.end());
 
-        // Normaliser les séparateurs en antislashs
+        // Normaliser les sï¿½parateurs en antislashs
         for (wchar_t& c : wPath) {
             if (c == '/') {
                 c = '\\';
             }
         }
 
-        // Nettoyer les antislashs multiples (\\) à un seul (\)
+        // Nettoyer les antislashs multiples (\\) ï¿½ un seul (\)
         std::wstring result;
         bool lastWasBackslash = false;
         for (size_t i = 0; i < wPath.size(); ++i) {
-            // Préserver le préfixe \\?\ intact
+            // Prï¿½server le prï¿½fixe \\?\ intact
             if (i < 4 && wPath.substr(0, 4) == L"\\\\?\\") {
                 result += wPath[i];
                 continue;
             }
 
-            // Réduire les antislashs multiples (\\) à un seul (\) après le préfixe
+            // Rï¿½duire les antislashs multiples (\\) ï¿½ un seul (\) aprï¿½s le prï¿½fixe
             if (wPath[i] == '\\') {
                 if (lastWasBackslash) {
-                    continue; // Ignorer les antislashs consécutifs
+                    continue; // Ignorer les antislashs consï¿½cutifs
                 }
                 lastWasBackslash = true;
             }
@@ -79,12 +79,12 @@ public:
         }
 
 
-        // Vérifier et éviter les préfixes \\?\ doublés
+        // Vï¿½rifier et ï¿½viter les prï¿½fixes \\?\ doublï¿½s
         if (!result.empty() && result.substr(0, 8) == L"\\\\?\\?\\") {
-            result = result.substr(4); // Supprimer le préfixe doublé
+            result = result.substr(4); // Supprimer le prï¿½fixe doublï¿½
         }
 
-        // Ajouter le préfixe \\?\ pour les chemins longs ou spéciaux
+        // Ajouter le prï¿½fixe \\?\ pour les chemins longs ou spï¿½ciaux
         if (!result.empty() && result.substr(0, 4) != L"\\\\?\\") {
             result = L"\\\\?\\" + result;
         }
@@ -98,7 +98,7 @@ public:
 
 
     bool setPath(const std::string& path) {
-        // Vérifiez que le chemin n'est pas vide
+        // Vï¿½rifiez que le chemin n'est pas vide
         if (path.empty()) {
             std::cerr << "Error: Path is empty!" << std::endl;
             return false;
@@ -106,7 +106,7 @@ public:
 
         std::wstring wPath = normalizePath(path);
 
-        // Vérifiez si le chemin existe et est un répertoire
+        // Vï¿½rifiez si le chemin existe et est un rï¿½pertoire
         DWORD attributes = GetFileAttributesW(wPath.c_str());
         if (attributes == INVALID_FILE_ATTRIBUTES) {
             DWORD error = GetLastError();
@@ -124,11 +124,11 @@ public:
             return false;
         }
 
-        // Vérifiez que c'est un répertoire
+        // Vï¿½rifiez que c'est un rï¿½pertoire
         if (attributes & FILE_ATTRIBUTE_DIRECTORY) {
             m_path = path; // Conservez le chemin original (non Unicode)
             if (m_path.back() != '\\') {
-                m_path += '\\'; // Ajoutez un séparateur final
+                m_path += '\\'; // Ajoutez un sï¿½parateur final
             }
             return true;
         }
@@ -158,7 +158,7 @@ public:
                 continue;
             }
 
-            // Déterminer si c'est un répertoire
+            // Dï¿½terminer si c'est un rï¿½pertoire
             bool isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 
             // Filtrer selon les flags
@@ -197,7 +197,7 @@ public:
             throw std::invalid_argument("Relative path cannot be empty.");
         }
 
-        // Vérifier si le chemin est déjà absolu
+        // Vï¿½rifier si le chemin est dï¿½jï¿½ absolu
         if (relativePath.size() > 2 && (relativePath[1] == ':' || relativePath.substr(0, 2) == "\\\\")) {
             return relativePath;
         }
@@ -205,7 +205,7 @@ public:
         // Ajouter le chemin relatif au chemin courant
         std::string absPath = m_path + relativePath;
 
-        // Normaliser le chemin pour éviter les erreurs
+        // Normaliser le chemin pour ï¿½viter les erreurs
         std::wstring normalizedPath = normalizePath(absPath);
 
         // Retourner en string
@@ -216,10 +216,10 @@ public:
         // Normaliser le chemin
         std::wstring normalizedPath = normalizePath(path);
 
-        // Vérifier si le répertoire existe déjà
+        // Vï¿½rifier si le rï¿½pertoire existe dï¿½jï¿½
         DWORD attributes = GetFileAttributesW(normalizedPath.c_str());
         if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            return true; // Répertoire déjà existant
+            return true; // Rï¿½pertoire dï¿½jï¿½ existant
         }
 
         // Parcourir chaque composante du chemin
@@ -228,18 +228,18 @@ public:
         while ((pos = normalizedPath.find(L'\\', pos + 1)) != std::wstring::npos) {
             currentPath = normalizedPath.substr(0, pos);
 
-            // Ignorer les cas où le chemin est \\?\, la racine (\), ou une lettre de disque suivie de :
+            // Ignorer les cas oï¿½ le chemin est \\?\, la racine (\), ou une lettre de disque suivie de :
             if (currentPath.empty() || currentPath == L"\\\\?" || currentPath == L"\\" || currentPath.back() == L':') {
                 continue;
             }
 
-            // Vérifier si le répertoire existe déjà
+            // Vï¿½rifier si le rï¿½pertoire existe dï¿½jï¿½
             DWORD attributes = GetFileAttributesW(currentPath.c_str());
             if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                continue; // Le répertoire existe déjà
+                continue; // Le rï¿½pertoire existe dï¿½jï¿½
             }
 
-            // Créer le répertoire s'il n'existe pas
+            // Crï¿½er le rï¿½pertoire s'il n'existe pas
             if (CreateDirectoryW(currentPath.c_str(), nullptr) == 0) {
                 DWORD error = GetLastError();
                 if (error != ERROR_ALREADY_EXISTS) {
@@ -251,7 +251,7 @@ public:
         }
 
 
-        // Créer le répertoire final
+        // Crï¿½er le rï¿½pertoire final
         if (CreateDirectoryW(normalizedPath.c_str(), nullptr) == 0) {
             DWORD error = GetLastError();
             if (error != ERROR_ALREADY_EXISTS) {
@@ -263,6 +263,74 @@ public:
 
         return true;
     }
+
+    static bool removeRecursively(const std::string& path) {
+        // CrÃ©er une instance locale de SwDir pour gÃ©rer le chemin
+        SwDir dir(path);
+
+        if (!dir.exists()) {
+            std::cerr << "Directory does not exist: " << path << std::endl;
+            return false;
+        }
+
+        // Utiliser la mÃ©thode d'instance pour supprimer rÃ©cursivement
+        return dir.removeRecursively();
+    }
+
+
+    bool removeRecursively() {
+        WIN32_FIND_DATAW findData;
+        HANDLE hFind;
+
+        // Construire le chemin de recherche
+        std::wstring searchPath = normalizePath(m_path) + L"*";
+        hFind = FindFirstFileW(searchPath.c_str(), &findData);
+
+        if (hFind == INVALID_HANDLE_VALUE) {
+            std::wcerr << L"Failed to open directory: " << normalizePath(m_path) << std::endl;
+            return false;
+        }
+
+        do {
+            std::wstring name = findData.cFileName;
+
+            // Ignorer "." et ".."
+            if (name == L"." || name == L"..") {
+                continue;
+            }
+
+            // Construire le chemin absolu
+            std::wstring fullPath = normalizePath(m_path) + name;
+
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                // Si c'est un rÃ©pertoire, le supprimer rÃ©cursivement
+                std::string fullPathString(fullPath.begin(), fullPath.end());
+                SwDir subDir(fullPathString + "\\");
+                if (!subDir.removeRecursively()) {
+                    FindClose(hFind);
+                    return false;
+                }
+            } else {
+                // Si c'est un fichier, le supprimer
+                if (!DeleteFileW(fullPath.c_str())) {
+                    std::wcerr << L"Failed to delete file: " << fullPath << std::endl;
+                    FindClose(hFind);
+                    return false;
+                }
+            }
+        } while (FindNextFileW(hFind, &findData));
+
+        FindClose(hFind);
+
+        // Supprimer le rÃ©pertoire lui-mÃªme
+        if (!RemoveDirectoryW(normalizePath(m_path).c_str())) {
+            std::wcerr << L"Failed to remove directory: " << normalizePath(m_path) << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
 
     static bool copy(const std::string& sourcePath, const std::string& destinationPath) {
         try {
@@ -277,7 +345,7 @@ public:
                 return false;
             }
 
-            // Créer le répertoire de destination s'il n'existe pas
+            // Crï¿½er le rï¿½pertoire de destination s'il n'existe pas
             if (CreateDirectoryW(destinationDir.c_str(), nullptr) == 0 && GetLastError() != ERROR_ALREADY_EXISTS) {
                 std::wcerr << L"Failed to create destination directory: " << destinationDir << std::endl;
                 FindClose(hFind);
@@ -296,13 +364,13 @@ public:
                 std::wstring destinationEntry = normalizePath(destinationPath) + L"\\" + entryName;
 
                 if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                    // Créer le répertoire de destination s'il n'existe pas
+                    // Crï¿½er le rï¿½pertoire de destination s'il n'existe pas
                     if (CreateDirectoryW(destinationEntry.c_str(), nullptr) == 0 && GetLastError() != ERROR_ALREADY_EXISTS) {
                         std::wcerr << L"Failed to create destination directory: " << destinationDir << std::endl;
                         FindClose(hFind);
                         return false;
                     }
-                    // Copier le sous-répertoire récursivement
+                    // Copier le sous-rï¿½pertoire rï¿½cursivement
                     if (!copy(std::string(sourceEntry.begin(), sourceEntry.end()),
                         std::string(destinationEntry.begin(), destinationEntry.end()))) {
                         FindClose(hFind);
@@ -329,6 +397,48 @@ public:
         }
     }
 
+std::vector<std::string> findFiles(const std::string& filter) const {
+    std::vector<std::string> foundFiles;
+    std::string searchPath = m_path + "*";
+
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        std::cerr << "Failed to open directory: " + m_path << std::endl;
+    }
+
+    do {
+        std::string name = findData.cFileName;
+
+        // Ignorer "." et ".."
+        if (name == "." || name == "..") {
+            continue;
+        }
+
+        // Construire le chemin absolu
+        std::string absolutePath = m_path + name;
+
+        // VÃ©rifier si c'est un rÃ©pertoire
+        bool isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+
+        if (isDir) {
+            // Parcours rÃ©cursif des sous-rÃ©pertoires
+            SwDir subDir(absolutePath);
+            auto subDirFiles = subDir.findFiles(filter);
+            foundFiles.insert(foundFiles.end(), subDirFiles.begin(), subDirFiles.end());
+        } else {
+            // VÃ©rifier si le fichier correspond au filtre
+            if (name.size() >= filter.size() &&
+                name.compare(name.size() - filter.size(), filter.size(), filter) == 0) {
+                foundFiles.push_back(absolutePath);
+            }
+        }
+    } while (FindNextFileA(hFind, &findData));
+
+    FindClose(hFind);
+    return foundFiles;
+}
 
 private:
     std::string m_path;

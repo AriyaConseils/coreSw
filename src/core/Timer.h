@@ -3,15 +3,28 @@
 #include "Object.h"
 #include "CoreApplication.h"
 
+/**
+ * @class Timer
+ * @brief Provides a timer implementation for periodic execution of tasks.
+ */
 class Timer : public Object 
 {
 
 public:
+
+    /**
+     * @brief Constructs a Timer object.
+     *
+     * @param ms The interval in milliseconds for the timer (default is 1000 ms).
+     * @param parent The parent object for the timer.
+     */
     Timer(int ms = 1000, Object *parent = nullptr)
-        : interval(ms*1000), Object(parent), running(false), timerId(-1) {
+        : Object(parent), interval(ms*1000), running(false), timerId(-1) {
     }
 
-    // Destructeur pour nettoyer correctement
+    /**
+     * @brief Destructor to clean up the timer resources.
+     */
     virtual ~Timer() {
         stop();
         if (timerId != -1) {
@@ -19,14 +32,20 @@ public:
         }
     }
 
-    // Setter pour l'intervalle
+    /**
+     * @brief Sets the interval for the timer.
+     *
+     * @param ms The interval in milliseconds.
+     */
     void setInterval(int ms) {
         if (!running) {
             interval = ms*1000;
         }
     }
 
-    // Méthode start pour démarrer le timer
+    /**
+     * @brief Starts the timer.
+     */
     void start() {
         if (!running) {
             running = true;
@@ -38,7 +57,9 @@ public:
         }
     }
 
-    // Méthode stop pour arrêter le timer
+    /**
+     * @brief Stops the timer.
+     */
     void stop() {
         if (running) {
             running = false;
@@ -54,6 +75,12 @@ public:
         }
     }
 
+    /**
+     * @brief Creates a single-shot timer that executes a callback after a specified delay.
+     *
+     * @param ms The delay in milliseconds.
+     * @param callback The callback function to execute.
+     */
     static void singleShot(int ms, std::function<void()> callback) {
         Timer* tempTimer = new Timer(ms);
 
@@ -67,10 +94,13 @@ public:
     }
 
 signals:
+    /**
+     * @brief Signal emitted when the timer interval elapses.
+     */
     DECLARE_SIGNAL(timeout)
 
 private:
-    int interval;
-    bool running;
-    int timerId;
+    int interval;    ///< The interval in microseconds for the timer.
+    bool running;    ///< Indicates if the timer is currently running.
+    int timerId;     ///< The unique identifier for the timer in the CoreApplication instance.
 };

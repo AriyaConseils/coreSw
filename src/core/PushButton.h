@@ -1,16 +1,15 @@
 #pragma once
 
 
-#include "Widget.h"
+#include "SwWidget.h"
 #include <windows.h>
-#include <string>
 #include <iostream>
 
 
 
-class PushButton : public Widget {
+class PushButton : public SwWidget {
 
-    SW_OBJECT(PushButton, Widget)
+    SW_OBJECT(PushButton, SwWidget)
 
     CUSTOM_PROPERTY(SwString, Text, "PushButton") {
         update();
@@ -22,8 +21,8 @@ class PushButton : public Widget {
         update();
     }
 public:
-    PushButton(const SwString& text, Widget* parent = nullptr)
-        : Widget(parent){
+    PushButton(const SwString& text, SwWidget* parent = nullptr)
+        : SwWidget(parent){
         width = 150;
         height = 50;
 
@@ -42,7 +41,7 @@ public:
                 border-width: 2px;          /* Épaisseur de la bordure */
             }
 
-            Widget {
+            SwWidget {
                 background-color: #FFFFFF;
                 color: #000000;
             }
@@ -84,7 +83,7 @@ public:
 
     // Gérer le survol de la souris
     virtual void mouseMoveEvent(MouseEvent* event) override {
-        Widget::mouseMoveEvent(event);
+        SwWidget::mouseMoveEvent(event);
     }
 
     // Gérer le clic sur le bouton
@@ -93,7 +92,7 @@ public:
             setPressed(true);
             event->accept();
         }
-        Widget::mousePressEvent(event);
+        SwWidget::mousePressEvent(event);
     }
 
     // Gérer le relâchement du bouton
@@ -103,7 +102,7 @@ public:
             event->accept();
         }
         setPressed(false);
-        Widget::mouseReleaseEvent(event);
+        SwWidget::mouseReleaseEvent(event);
     }
 
 signals:

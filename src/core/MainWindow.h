@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Widget.h"
+#include "SwWidget.h"
 #include <windows.h>
 #include <iostream>
 #include <chrono>
 
 
 
-class MainWindow : public Widget {
+class MainWindow : public SwWidget {
 public:
-    MainWindow(Widget* parent = nullptr) : Widget(parent) {
+    MainWindow(SwWidget* parent = nullptr) : SwWidget(parent) {
         // Enregistrer la classe de fenêtre
         const wchar_t CLASS_NAME[] = L"MainWindowClass";
 		WNDCLASSW wc = {}; // Utiliser WNDCLASSW pour Unicode
@@ -34,45 +34,44 @@ public:
     // Afficher la fenêtre
     virtual void show() override{
         ShowWindow(hwnd, SW_SHOW);
-        Widget::show();
+        SwWidget::show();
     }
 
     // Cacher la fenêtre
     virtual void hide() override {
         ShowWindow(hwnd, SW_HIDE);  // Utiliser la fonction Windows pour cacher la fenêtre
-        Widget::hide();  // Appeler la méthode hide du widget parent
+        SwWidget::hide();  // Appeler la méthode hide du SwWidget parent
     }
 
-
 protected:
-    // Gestionnaire d'événements pour redessiner la fenêtre (hérite de Widget::paintEvent)
+    // Gestionnaire d'événements pour redessiner la fenêtre (hérite de SwWidget::paintEvent)
     virtual void paintEvent(PaintEvent* event) override {
         
 
-        // Appeler la logique de base du widget (pour redessiner les enfants, par exemple)
-        Widget::paintEvent(event);
+        // Appeler la logique de base du SwWidget (pour redessiner les enfants, par exemple)
+        SwWidget::paintEvent(event);
     }
 
 
-    // Gestionnaire d'événements pour les clics de souris (hérite de Widget::mousePressEvent)
+    // Gestionnaire d'événements pour les clics de souris (hérite de SwWidget::mousePressEvent)
     virtual void mousePressEvent(MouseEvent* event) override {
-        Widget::mousePressEvent(event);  // Appeler la logique de base du widget
+        SwWidget::mousePressEvent(event);  // Appeler la logique de base du SwWidget
     }
 
     // Gestionnaire d'événements pour le relâchement du clic de souris
     virtual void mouseReleaseEvent(MouseEvent* event) {
-        Widget::mouseReleaseEvent(event);  // Propager l'événement aux enfants
+        SwWidget::mouseReleaseEvent(event);  // Propager l'événement aux enfants
     }
 
     // Gestionnaire d'événements pour les double-clics de souris
     virtual void mouseDoubleClickEvent(MouseEvent* event) {
-        // Appeler la logique de base du widget si nécessaire
-        Widget::mouseDoubleClickEvent(event);
+        // Appeler la logique de base du SwWidget si nécessaire
+        SwWidget::mouseDoubleClickEvent(event);
     }
 
     // Redéfinir mouseMoveEvent pour gérer le déplacement de la souris
     virtual void mouseMoveEvent(MouseEvent* event) override {
-        Widget::mouseMoveEvent(event);  // Propager aux enfants
+        SwWidget::mouseMoveEvent(event);  // Propager aux enfants
     }
 
 
@@ -80,8 +79,9 @@ protected:
     // Gestionnaire d'événements pour les appuis de touches
     virtual void keyPressEvent(KeyEvent* event) override {
         // Appeler la méthode de la classe de base pour traiter l'événement
-        Widget::keyPressEvent(event);
+        SwWidget::keyPressEvent(event);
     }
+
 
 private:
     POINT lastMousePosition; 
@@ -105,11 +105,11 @@ private:
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hwnd, &ps);
                 // Activer le mode anti-aliasing
-                Gdiplus::Graphics graphics(hdc);
-                graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+                // Gdiplus::Graphics graphics(hdc);
+                // graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
                 PaintEvent paintEvent(hdc, ps.rcPaint);
-                window->paintEvent(&paintEvent);  // Appeler l'événement paintEvent du widget
+                window->paintEvent(&paintEvent);  // Appeler l'événement paintEvent du SwWidget
 
                 EndPaint(hwnd, &ps);
                 return 0;
@@ -117,7 +117,7 @@ private:
 
             case WM_LBUTTONDOWN: {
                 MouseEvent mouseEvent(EventType::MousePress, LOWORD(lParam), HIWORD(lParam));
-                window->mousePressEvent(&mouseEvent);  // Appeler l'événement mousePressEvent du widget
+                window->mousePressEvent(&mouseEvent);  // Appeler l'événement mousePressEvent du SwWidget
                 return 0;
             }
 
@@ -129,7 +129,7 @@ private:
 
             case WM_LBUTTONUP: {
                 MouseEvent mouseEvent(EventType::MouseRelease, LOWORD(lParam), HIWORD(lParam));
-                window->mouseReleaseEvent(&mouseEvent);  // Appeler l'événement mouseReleaseEvent du widget
+                window->mouseReleaseEvent(&mouseEvent);  // Appeler l'événement mouseReleaseEvent du SwWidget
                 return 0;
             }
 
@@ -174,7 +174,7 @@ private:
                 int width = clientRect.right - clientRect.left;
                 int height = clientRect.bottom - clientRect.top;
 
-                // Redimensionner le widget à la nouvelle taille de la fenêtre
+                // Redimensionner le SwWidget à la nouvelle taille de la fenêtre
                 window->resize(width, height);
 
                 return 0;
