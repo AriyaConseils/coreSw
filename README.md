@@ -2,6 +2,10 @@
 
 **coreSw** is a native C++ library inspired by the Qt framework, aiming to provide a standalone, lightweight toolkit with key features commonly found in Qt, but without any Qt dependencies. The project is fully compatible with C++11, making it accessible for a wide range of environments.
 
+**Documentation:**  
+[coreSw Doxygen Documentation](https://app.swiiz.io/projects/ViaYG9BRiR7ZO2EenP3myzu7Dkiy67cN7wB/index)
+
+
 ## Features
 
 ### JSON, Cryptography, and Custom Types
