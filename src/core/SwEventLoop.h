@@ -1,17 +1,17 @@
 #pragma once
 
 #include "Object.h"
-#include "CoreApplication.h"
+#include "SwCoreApplication.h"
 #include <thread>
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
 
-class EventLoop : public Object {
+class SwEventLoop : public Object {
 public:
-    EventLoop() : running(false) {}
+    SwEventLoop() : running(false) {}
 
-    ~EventLoop() {
+    ~SwEventLoop() {
         quit();
     }
 
@@ -19,7 +19,7 @@ public:
         running = true;
 
         while (running) {
-            int interval = CoreApplication::instance()->exec(); 
+            int interval = SwCoreApplication::instance()->exec();
             //std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
@@ -37,7 +37,7 @@ public:
 
     static void wait(int timeout) {
         auto startTime = std::chrono::steady_clock::now(); 
-         CoreApplication::instance()->exec(timeout*1000); 
+         SwCoreApplication::instance()->exec(timeout*1000);
 
          auto endTime = std::chrono::steady_clock::now();
          auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();

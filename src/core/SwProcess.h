@@ -1,7 +1,7 @@
 #pragma once
 
-#include "IODevice.h"
-#include "IODescriptor.h"
+#include "SwIODevice.h"
+#include "SwIODescriptor.h"
 #include <windows.h>
 #include <vector>
 #include <string>
@@ -15,8 +15,30 @@ enum class ProcessFlags : DWORD {
     Suspended = CREATE_SUSPENDED // Lancer le processus en état suspendu
 };
 
-
-class SwProcess : public IODevice {
+/**
+ * @class SwProcess
+ * @brief The SwProcess class provides an interface for managing system processes with I/O redirection.
+ *
+ * This class allows you to launch and manage external processes while providing access to their
+ * standard input, output, and error streams. It inherits from SwIODevice to leverage I/O capabilities.
+ *
+ * Key Features:
+ * - Launch processes and monitor their execution state.
+ * - Redirect and interact with the process's standard I/O streams.
+ * - Periodically monitor the process state using a timer.
+ *
+ * Example Usage:
+ * @code
+ * SwProcess* process = new SwProcess();
+ * process->start("myExecutable", {"arg1", "arg2"});
+ * process->write("Input data");
+ * QString output = process->readAllStandardOutput();
+ * delete process;
+ * @endcode
+ *
+ * @see SwIODevice
+ */
+class SwProcess : public SwIODevice {
 public:
 
     /**
@@ -31,12 +53,12 @@ public:
      * @param parent An optional parent object for hierarchical ownership.
      */
     SwProcess(Object* parent = nullptr)
-        : IODevice(parent), processRunning(false), hProcess(NULL), hStdOutRead(NULL), hStdErrRead(NULL), hStdInWrite(NULL) {
+        : SwIODevice(parent), processRunning(false), hProcess(NULL), hStdOutRead(NULL), hStdErrRead(NULL), hStdInWrite(NULL) {
         stdoutDescriptor = nullptr;
         stderrDescriptor = nullptr;
         stdinDescriptor = nullptr;
-        monitorTimer = new Timer(500);
-        connect(monitorTimer, "timeout", this, &SwProcess::checkProcessStatus);
+        monitorTimer = new SwTimer(500);
+        connect(monitorTimer, SIGNAL(timeout), this, &SwProcess::checkProcessStatus);
     }
 
     /**
@@ -67,9 +89,9 @@ public:
      *
      * @return `true` if the process started successfully, `false` otherwise.
      */
-    bool start(const std::string& program, const std::vector<std::string>& arguments = {},
+    bool start(const SwString& program, const SwStringList& arguments = {},
                ProcessFlags flags = ProcessFlags::NoFlag,
-               const std::string& workingDirectory = "") {
+               const SwString& workingDirectory = "") {
         if (isOpen()) {
             std::cout << "Process already running!" << std::endl;
             return false;
@@ -104,7 +126,7 @@ public:
      * @return `true` if the process started successfully, `false` otherwise.
      */
     bool start(ProcessFlags flags = ProcessFlags::NoFlag) {
-        if (m_program.empty()) {
+        if (m_program.isEmpty()) {
             std::cerr << "Program is not set!" << std::endl;
             return false;
         }
@@ -118,7 +140,7 @@ public:
      *
      * @param program The path to the executable file.
      */
-    void setProgram(const std::string& program) { m_program = program; }
+    void setProgram(const SwString& program) { m_program = program; }
 
     /**
      * @brief Retrieves the program path for the process.
@@ -127,7 +149,7 @@ public:
      *
      * @return A string containing the program path.
      */
-    std::string program() const { return m_program; }
+    SwString program() const { return m_program; }
 
     /**
      * @brief Sets the arguments to be passed to the process.
@@ -136,7 +158,7 @@ public:
      *
      * @param arguments A vector of strings containing the arguments.
      */
-    void setArguments(const std::vector<std::string>& arguments) { m_arguments = arguments; }
+    void setArguments(const SwStringList& arguments) { m_arguments = arguments; }
 
     /**
      * @brief Retrieves the arguments set for the process.
@@ -145,7 +167,7 @@ public:
      *
      * @return A vector of strings containing the arguments.
      */
-    std::vector<std::string> arguments() const { return m_arguments; }
+    SwStringList arguments() const { return m_arguments; }
 
     /**
      * @brief Sets the working directory for the process.
@@ -154,7 +176,7 @@ public:
      *
      * @param dir The path to the working directory.
      */
-    void setWorkingDirectory(const std::string& dir) { m_workingDirectory = dir; }
+    void setWorkingDirectory(const SwString& dir) { m_workingDirectory = dir; }
 
     /**
      * @brief Retrieves the working directory set for the process.
@@ -163,14 +185,14 @@ public:
      *
      * @return A string containing the path to the working directory.
      */
-    std::string workingDirectory() const { return m_workingDirectory; }
+    SwString workingDirectory() const { return m_workingDirectory; }
 
     /**
      * @brief Closes the currently running process and releases associated resources.
      *
      * Ensures proper termination of the process and cleanup of allocated resources:
      * - Stops monitoring timers and descriptors.
-     * - Removes standard input/output/error descriptors from IODevice.
+     * - Removes standard input/output/error descriptors from SwIODevice.
      * - Terminates the process and waits for it to fully stop.
      * - Releases all process handles and emits relevant signals.
      *
@@ -187,7 +209,7 @@ public:
 
 
 
-        // Remove descriptors from IODevice
+        // Remove descriptors from SwIODevice
         // This will delete the descriptors and automatically close the associated pipe handles
         removeDescriptor(stdoutDescriptor);
         removeDescriptor(stderrDescriptor);
@@ -229,7 +251,7 @@ public:
      * @return A string containing the data read from the process's standard output.
      *         Returns an empty string if the standard output descriptor is unavailable.
      */
-    std::string read(int64_t maxSize = 0) override {
+    SwString read(int64_t maxSize = 0) override {
         if (!stdoutDescriptor) return "";
         return stdoutDescriptor->read();
     }
@@ -256,7 +278,7 @@ public:
      *
      * @return `true` if the data was successfully written, `false` if the standard input descriptor is unavailable.
      */
-    bool write(const std::string& data) override {
+    bool write(const SwString& data) override {
         if (!stdinDescriptor) return false;
         return stdinDescriptor->write(data);
     }
@@ -341,12 +363,12 @@ signals:
     
 
 private:
-    Timer* monitorTimer;
+    SwTimer* monitorTimer;
     bool processRunning;
 
-    std::string m_program;
-    std::vector<std::string> m_arguments;
-    std::string m_workingDirectory;
+    SwString m_program;
+    SwStringList m_arguments;
+    SwString m_workingDirectory;
 
     HANDLE hProcess;
     HANDLE hThread;
@@ -357,9 +379,9 @@ private:
     HANDLE hStdInWrite;
     HANDLE hStdInRead;
 
-    IODescriptor* stdoutDescriptor;
-    IODescriptor* stderrDescriptor;
-    IODescriptor* stdinDescriptor;
+    SwIODescriptor* stdoutDescriptor;
+    SwIODescriptor* stderrDescriptor;
+    SwIODescriptor* stdinDescriptor;
 
     /**
      * @brief Creates pipes for process communication (stdin, stdout, and stderr).
@@ -368,7 +390,7 @@ private:
      * - Ensures the descriptors are not already initialized.
      * - Uses `CreatePipe` to create communication pipes.
      * - Configures the handles to prevent inheritance using `SetHandleInformation`.
-     * - Wraps the handles in `IODescriptor` objects for easier management and adds them to the device.
+     * - Wraps the handles in `SwIODescriptor` objects for easier management and adds them to the device.
      *
      * @return `true` if all pipes were successfully created and configured, `false` otherwise.
      *
@@ -414,9 +436,9 @@ private:
             return false;
         }
 
-        stdoutDescriptor = new IODescriptor(hStdOutRead, "StdOut");
-        stderrDescriptor = new IODescriptor(hStdErrRead, "StdErr");
-        stdinDescriptor = new IODescriptor(hStdInWrite, "StdIn");
+        stdoutDescriptor = new SwIODescriptor(hStdOutRead, "StdOut");
+        stderrDescriptor = new SwIODescriptor(hStdErrRead, "StdErr");
+        stdinDescriptor = new SwIODescriptor(hStdInWrite, "StdIn");
         addDescriptor(stdoutDescriptor);
         addDescriptor(stderrDescriptor);
         return true;
@@ -438,16 +460,16 @@ private:
      *
      * @note This is a private helper function used internally during process initialization.
      */
-    bool startProcess(const std::string& program, const std::vector<std::string>& arguments,
+    bool startProcess(const SwString& program, const SwStringList& arguments,
                       ProcessFlags creationFlags = ProcessFlags::NoFlag,
-                      const std::string& workingDirectory = "") {
-        std::string command = program;
-        for (const auto& arg : arguments) {
-            command += " " + arg;
+                      const SwString& workingDirectory = "") {
+        SwString command = program;
+        for (const auto& argv : arguments) {
+            command += SwString(" %1").arg(argv);
         }
 
-        std::wstring wideCommand = std::wstring(command.begin(), command.end());
-        std::wstring wideWorkingDirectory = std::wstring(workingDirectory.begin(), workingDirectory.end());
+        std::wstring wideCommand = command.toStdWString();
+        std::wstring wideWorkingDirectory = workingDirectory.toStdWString();
 
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
@@ -461,7 +483,7 @@ private:
 
         ZeroMemory(&pi, sizeof(pi));
 
-        LPCWSTR lpWorkingDir = workingDirectory.empty() ? NULL : wideWorkingDirectory.c_str();
+        LPCWSTR lpWorkingDir = workingDirectory.isEmpty() ? NULL : wideWorkingDirectory.c_str();
 
         // Utiliser 'creationFlags' fourni par l'appelant
         if (!CreateProcessW(NULL, &wideCommand[0], NULL, NULL, TRUE, static_cast<DWORD>(creationFlags), NULL, lpWorkingDir, &si, &pi)) {

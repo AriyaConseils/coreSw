@@ -285,9 +285,8 @@ public:
      * @param indentLevel The current level of indentation for nested structures.
      * @return A JSON-formatted string representation of the value.
      */
-    std::string toJsonString(bool compact = true, int indentLevel = 0) const {
+    std::string toJsonString() const {
         std::ostringstream os;
-        std::string indent(indentLevel * 2, ' '); // Indentation pour le niveau actuel
 
         if (type_ == Type::String) os << "\"" << stringValue_ << "\"";
         else if (type_ == Type::Boolean) os << (boolValue_ ? "true" : "false");

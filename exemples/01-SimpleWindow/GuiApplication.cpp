@@ -3,10 +3,10 @@
 
 #include <iostream>
 #include "PushButton.h"
-#include "GuiApplication.h"
-#include "Timer.h"
-#include "EventLoop.h"
-#include "Process.h"
+#include "SwGuiApplication.h"
+#include "SwTimer.h"
+#include "SwEventLoop.h"
+#include "SwProcess.h"
 #include "MainWindow.h"
 #include "LineEdit.h"
 #include "Label.h"
@@ -17,7 +17,7 @@ int main() {
 	
 	//while(wait);
 	
-    GuiApplication app;
+    SwGuiApplication app;
     MainWindow mainWindow;
     mainWindow.show();
 
@@ -53,7 +53,7 @@ int main() {
         label->resize(labelWidth, labelHeight);
 
         // Création des LineEdit
-        LineEdit* lineEdit = new LineEdit("Entrez votre message ici...", &mainWindow);
+        SwLineEdit* lineEdit = new SwLineEdit("Entrez votre message ici...", &mainWindow);
         lineEdit->move(xPos, yPos + labelHeight + 10);  // Positionner sous le label
         lineEdit->resize(lineEditWidth, lineEditHeight);
         lineEdit->setEchoMode(EchoModeEnum::NormalEcho);

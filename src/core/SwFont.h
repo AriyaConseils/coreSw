@@ -39,7 +39,8 @@ public:
 
     ~SwFont() {
         if (hFont) {
-            DeleteObject(hFont);
+            // TODO a metre dans le wrapper gdiplus
+            // DeleteObject(hFont);
         }
     }
 

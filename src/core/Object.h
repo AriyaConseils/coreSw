@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreApplication.h"
+#include "SwCoreApplication.h"
 
 #include <iostream>
 #include <map>
@@ -86,7 +86,7 @@ protected: \
 
 
 #define PROPERTY(type, PROP_NAME, defautValue) \
-    CUSTOM_PROPERTY(type, PROP_NAME, defautValue) {}
+    CUSTOM_PROPERTY(type, PROP_NAME, defautValue) { SW_UNUSED(value); }
 
 #define SURCHARGE_ON_PROPERTY_CHANGED(type, PROP_NAME) \
 protected: \
@@ -98,11 +98,21 @@ protected: \
 
 
 
-#define signals private
-#define slots
+//#ifndef signals
+#define signals public
+//#endif
 
+//#ifndef slots
+#define slots
+//#endif
+
+//#ifndef SIGNAL
 #define SIGNAL(signalName) #signalName
+//#endif
+
+//#ifndef SLOT
 #define SLOT(slotName) #slotName
+//#endif
 
 #define DECLARE_SIGNAL(signalName, ...) \
     template <typename... Args> \
@@ -139,26 +149,26 @@ public:                                                                 \
 
 
 
+#include <functional>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
-
-
-// Enum pour les types de connexion
 enum ConnectionType {
     DirectConnection,
     QueuedConnection,
     BlockingQueuedConnection
 };
 
-
 template<typename T, typename... Args>
 class ISlot {
 public:
     virtual ~ISlot() {}
     virtual void invoke(T* instance, Args... args) = 0;
-    virtual T* receiveur() = 0; 
+    virtual T* receiveur() = 0;
 };
 
-// Template pour un slot de méthode membre
+// Slot pour une méthode membre
 template <typename T, typename... Args>
 class SlotMember : public ISlot<T, Args...> {
 public:
@@ -177,7 +187,7 @@ private:
     void (T::* method)(Args...);
 };
 
-// Template pour un slot fonctionnel (lambda ou std::function)
+// Slot fonctionnel (lambda, std::function)
 template <typename... Args>
 class SlotFunction : public ISlot<void, Args...> {
 public:
@@ -196,22 +206,71 @@ private:
 };
 
 
-// Implémentation pour vérifier si une fonction ou lambda est invocable
-template <typename Func, typename... Args>
-class is_invocable {
-private:
-    template <typename F>
-    static auto test(int) -> decltype(std::declval<F>()(std::declval<Args>()...), std::true_type());
+// ============================================================================
+//                          TRAITS DE FONCTION
+// ============================================================================
 
-    template <typename>
-    static auto test(...) -> std::false_type;
+// Extraction de la signature d'un callable (lambda, functor, fonction)
+template <class F>
+struct function_traits : function_traits<decltype(&F::operator())> {};
 
-public:
-    static constexpr bool value = decltype(test<Func>(0))::value;
+// Pour une fonction de la forme R(Args...)
+template <class R, class... Args>
+struct function_traits<R(Args...)> {
+    using return_type = R;
+    // On utilise std::decay_t pour éviter les références et const
+    using args_tuple = std::tuple<std::decay_t<Args>...>;
+    using std_function_type = std::function<R(Args...)>;
 };
 
-// Macro pour simplifier l'utilisation
-#define IS_INVOCABLE(Func, ...) is_invocable<Func, __VA_ARGS__>::value
+
+template <class R, class... Args>
+struct function_traits<R(*)(Args...)> : function_traits<R(Args...)> {};
+
+template <class C, class R, class... Args>
+struct function_traits<R(C::*)(Args...) const> : function_traits<R(Args...)> {};
+
+template <class C, class R, class... Args>
+struct function_traits<R(C::*)(Args...)> : function_traits<R(Args...)> {};
+
+
+// ============================================================================
+//               FONCTION AUXILIAIRE POUR DEPLIER UN TUPLE EN PACK
+// ============================================================================
+
+template<class Tuple, class F, std::size_t... I>
+auto apply_tuple_impl(Tuple&&, F&& f, std::index_sequence<I...>) {
+    // On appelle f avec un pack de types déduit depuis Tuple
+    // f est un foncteur template<...Args> ISlot<void, Args...>* operator()()
+    return f.template operator()<typename std::tuple_element<I, Tuple>::type...>();
+}
+
+template<class Tuple, class F>
+auto apply_tuple(Tuple&& t, F&& f) {
+    return apply_tuple_impl(
+        std::forward<Tuple>(t),
+        std::forward<F>(f),
+        std::make_index_sequence<std::tuple_size<typename std::decay<Tuple>::type>::value>{}
+    );
+}
+
+
+// ============================================================================
+//              FABRIQUE DE SLOT POUR LAMBDA/FONCTION GENERIQUE
+// ============================================================================
+template<class Func>
+struct slot_factory {
+    Func func;
+    slot_factory(Func&& f) : func(std::forward<Func>(f)) {}
+
+    // Operator() template qui va être appelé par apply_tuple avec Args...
+    template<typename... A>
+    ISlot<void, A...>* operator()() {
+        using Fn = std::function<void(A...)>;
+        Fn f(func); // Conversion implicite vers std::function
+        return new SlotFunction<A...>(std::move(f));
+    }
+};
 
 
 
@@ -292,13 +351,13 @@ public:
     /**
      * @brief Marks the object for deletion in the next event loop iteration.
      *
-     * This method schedules the deletion of the object using `CoreApplication::postEvent`.
+     * This method schedules the deletion of the object using `SwCoreApplication::postEvent`.
      * The actual deletion occurs asynchronously, ensuring that the object is safely
      * removed without disrupting the current execution flow.
      */
     void deleteLater() {
         Object* meAsAShitToClean = this;
-        CoreApplication::instance()->postEvent([meAsAShitToClean]() {
+        SwCoreApplication::instance()->postEvent([meAsAShitToClean]() {
             delete meAsAShitToClean;
         });
     }
@@ -421,7 +480,7 @@ public:
      *
      * @param child Pointer to the object that was added as a child.
      */
-    virtual void addChildEvent(Object* child) { }
+    virtual void addChildEvent(Object* child) { SW_UNUSED(child) }
 
     /**
      * @brief Handles the event triggered when a child object is removed.
@@ -431,7 +490,7 @@ public:
      *
      * @param child Pointer to the object that was removed as a child.
      */
-    virtual void removedChildEvent(Object* child) { }
+    virtual void removedChildEvent(Object* child) { SW_UNUSED(child)  }
 
     /**
      * @brief Connects a signal from a sender object to a slot in a receiver object.
@@ -481,18 +540,20 @@ public:
      * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection).
      *             Default is DirectConnection.
      */
-    template <typename Sender, typename Func>
-    static void connect(Sender* sender, const SwString& signalName, Func&& func, ConnectionType type = DirectConnection) {
-        // Convert Func en std::function
-        using FuncType = decltype(func);
-        auto wrappedFunc = std::function<void(int, int)>(std::forward<Func>(func));
+    template <typename SenderType, typename Func>
+    static void connect(SenderType* sender, const SwString& signalName, Func&& func, ConnectionType type = DirectConnection) {
+        using traits = function_traits<typename std::decay<Func>::type>;
+        using R = typename traits::return_type;
+        using args_tuple = typename traits::args_tuple;
 
-        // Créer SlotFunction
-        auto* slot = new SlotFunction<int, int>(std::move(wrappedFunc));
+        static_assert(std::is_void<R>::value, "Seules les fonctions retournant void sont supportées.");
 
-        // Ajouter la connexion
+        // On utilise apply_tuple pour déplier le tuple d'arguments (Args...) de la fonction
+        auto slot = apply_tuple(args_tuple{}, slot_factory<Func>(std::forward<Func>(func)));
+
         sender->addConnection(signalName, slot, type);
     }
+
 
     /**
      * @brief Connects a signal to a slot using modern pointer-to-member function syntax.
@@ -651,7 +712,7 @@ public:
                 }
                 else if (type == QueuedConnection) {
                     // Mettre en file d'attente pour un traitement ultérieur
-                    CoreApplication::instance()->postEvent([this, slot, args...]() {
+                    SwCoreApplication::instance()->postEvent([this, slot, args...]() {
                         if (slot->receiveur()) {
                             static_cast<Object*>(slot->receiveur())->setSender(this);
                         }   
@@ -833,7 +894,7 @@ protected:
      *
      * @param parent The new parent object assigned to this object.
      */
-    virtual void newParentEvent(Object* parent) { }
+    virtual void newParentEvent(Object* parent) { SW_UNUSED(parent) }
 
     /**
      * @brief Adds a property registrar function.
@@ -894,8 +955,8 @@ protected:
     std::vector<std::function<void()>> propertyRegistrars;
 
 signals:
-    DECLARE_SIGNAL(childRemoved);
-    DECLARE_SIGNAL(childAdded);
+    DECLARE_SIGNAL(childRemoved)
+    DECLARE_SIGNAL(childAdded)
 
 private:
     Object* m_parent = nullptr;

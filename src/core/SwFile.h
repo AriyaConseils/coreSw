@@ -1,18 +1,18 @@
 #pragma once
 
-#include "CoreApplication.h"
-#include "IODevice.h"
+#include "SwCoreApplication.h"
+#include "SwIODevice.h"
 #include <fstream>
 #include <string>
 #include <sys/stat.h>
 #include <iostream>
 #include <stdexcept>
 #include <ctime>
+#include "SwDateTime.h"
+#include "SwStandardLocation.h"
 
 
-
-
-class SwFile : public IODevice {
+class SwFile : public SwIODevice {
 public:
     enum OpenMode {
         Read,
@@ -21,12 +21,12 @@ public:
     };
 
     SwFile(Object* parent = nullptr)
-        : IODevice(parent), currentMode_(Read) {
+        : SwIODevice(parent), currentMode_(Read) {
         ZeroMemory(&lastWriteTime_, sizeof(FILETIME));
     }
 
-    explicit SwFile(const std::string& filePath, Object* parent = nullptr)
-        : IODevice(parent), currentMode_(Read) {
+    explicit SwFile(const SwString& filePath, Object* parent = nullptr)
+        : SwIODevice(parent), currentMode_(Read) {
         filePath_ = filePath;
         ZeroMemory(&lastWriteTime_, sizeof(FILETIME));
     }
@@ -37,29 +37,22 @@ public:
 
 
     // Définir le chemin du fichier
-    void setFilePath(const std::string& filePath) {
+    void setFilePath(const SwString& filePath) {
         filePath_ = filePath;
     }
 
-    std::string fileName() const {
-        if (filePath_.empty()) {
-            throw std::runtime_error("Chemin du fichier non défini.");
-        }
-
-        // Trouver la position du dernier séparateur de chemin
-        size_t lastSlash = filePath_.find_last_of("/\\");
-        if (lastSlash == std::string::npos) {
-            // Pas de séparateur trouvé, tout le chemin est le nom du fichier
-            return filePath_;
+    SwString fileName() const {
+        if (filePath_.isEmpty()) {
+            std::cerr << "Error: File path is empty!" << std::endl;
         }
 
         // Retourner la partie après le dernier séparateur
-        return filePath_.substr(lastSlash + 1);
+        return filePath_.split("/").last();
     }
 
     // Ouvrir un fichier
     bool open(OpenMode mode) {
-        if (filePath_.empty()) {
+        if (filePath_.isEmpty()) {
             std::cerr << "Chemin du fichier non défini." << std::endl;
         }
 
@@ -94,62 +87,62 @@ public:
     }
 
     // Écrire dans le fichier
-    bool write(const std::string& data) {
+    bool write(const SwString& data) {
         if (currentMode_ != Write && currentMode_ != Append) {
-            throw std::runtime_error("Fichier non ouvert en mode écriture.");
+            std::cerr << "Fichier non ouvert en mode écriture." << std::endl;
         }
         fileStream_ << data;
         fileStream_.flush();
         return fileStream_.good();
     }
 
-    std::string readAll() {
+    SwString readAll() {
         if (currentMode_ != Read) {
-            throw std::runtime_error("Fichier non ouvert en mode lecture.");
+            std::cerr << "Fichier non ouvert en mode lecture." << std::endl;
         }
 
-        std::string content;
+        // Aller à la fin du fichier pour déterminer la taille
         fileStream_.seekg(0, std::ios::end);
-        content.resize(fileStream_.tellg());
-        fileStream_.seekg(0, std::ios::beg);
-        fileStream_.read(&content[0], content.size());
-
-        // Trouver la dernière position non-nulle
-        size_t lastNonNull = content.find_last_not_of('\0');
-        if (lastNonNull != std::string::npos) {
-            content.resize(lastNonNull + 1);
-        } else {
-            content.clear(); // Si tout est nul, vider la chaîne
+        std::streamsize size = fileStream_.tellg();
+        if (size <= 0) {
+            return SwString(); // Retourne une chaîne vide si le fichier est vide ou invalide
         }
 
+        fileStream_.seekg(0, std::ios::beg);
+
+        // Redimensionner le buffer interne de SwString
+        SwString content;
+        content.resize(size); // Ajoutez cette méthode dans SwString
+
+        // Lire les données directement dans le tampon
+        fileStream_.read(content.data(), size);
 
         return content;
     }
-
 
     // Vérifier si le fichier est ouvert
     bool isOpen() const override {
         return fileStream_.is_open();
     }
 
-    std::string getDirectory() const {
-        if (filePath_.empty()) {
-            throw std::runtime_error("Chemin du fichier non défini.");
+    SwString getDirectory() const {
+        if (filePath_.isEmpty()) {
+            std::cerr << "Chemin du fichier non défini." << std::endl;
+            return SwString(); // Retourne une chaîne vide en cas d'erreur
         }
 
-        size_t lastSlash = filePath_.find_last_of("/\\");
-        if (lastSlash == std::string::npos) {
-            return ""; // Aucun répertoire trouvé (le chemin peut être un fichier sans répertoire)
-        }
+        SwStringList parts = filePath_.split("/");
+        parts.removeLast(); // Supprime la dernière partie (le nom du fichier)
 
-        return filePath_.substr(0, lastSlash); // Retourne le répertoire sans le dernier séparateur
+        return parts.join("/"); // Rejoint les parties pour reformer le chemin
     }
 
-    static bool isFile(const std::string& path) {
+
+    static bool isFile(const SwString& path) {
         struct stat info;
 
         // Utilisation de stat pour obtenir des informations sur le chemin
-        if (stat(path.c_str(), &info) != 0) {
+        if (stat(path.toStdString().c_str(), &info) != 0) {
             // Retourne false si le chemin est inaccessible ou n'existe pas
             return false;
         }
@@ -159,9 +152,9 @@ public:
     }
 
 
-    bool contains(const std::string& keyword) {
+    bool contains(const SwString& keyword) {
         if (currentMode_ != Read) {
-            throw std::runtime_error("Fichier non ouvert en mode lecture.");
+            std::cerr << "Fichier non ouvert en mode lecture." << std::endl;
         }
 
         std::string line;
@@ -174,22 +167,41 @@ public:
         return false;
     }
 
-    std::string readLine(std::size_t lineNumber) {
+    SwString readLine(std::size_t lineNumber) {
         if (currentMode_ != Read) {
-            throw std::runtime_error("Fichier non ouvert en mode lecture.");
+            std::cerr << "Fichier non ouvert en mode lecture." << std::endl;
         }
 
         std::string line;
         fileStream_.seekg(0); // Revenir au début du fichier
         for (std::size_t currentLine = 0; currentLine <= lineNumber; ++currentLine) {
             if (!std::getline(fileStream_, line)) {
-                throw std::out_of_range("Ligne hors limites.");
+                std::cerr << "Ligne hors limites." << std::endl;
             }
         }
         return line;
     }
 
-    std::string readChunk(std::size_t chunkSize) {
+    SwString readLine() {
+        if (currentMode_ != Read) {
+            std::cerr << "Fichier non ouvert en mode lecture." << std::endl;
+        }
+
+        std::string line;
+        if (!std::getline(fileStream_, line)) {
+            return "";
+        }
+        return line;
+    }
+
+    bool atEnd() const {
+        if (!fileStream_.is_open()) {
+            std::cerr << "Fichier non ouvert." << std::endl;
+        }
+        return fileStream_.eof();
+    }
+
+    SwString readChunk(std::size_t chunkSize) {
         if (currentMode_ != Read) {
             throw std::runtime_error("Fichier non ouvert en mode lecture.");
         }
@@ -216,7 +228,7 @@ public:
     }
 
 
-    std::string readLinesInRangeLazy(std::size_t startLine, std::size_t endLine) {
+    SwString readLinesInRangeLazy(std::size_t startLine, std::size_t endLine) {
         if (currentMode_ != Read) {
             throw std::runtime_error("Fichier non ouvert en mode lecture.");
         }
@@ -233,7 +245,7 @@ public:
         fileStream_.clear();
         fileStream_.seekg(0, std::ios::beg); // Revenir au début du fichier
 
-        std::string result;
+        SwString result;
         std::string line;
         std::size_t currentLine = 0;
 
@@ -250,7 +262,7 @@ public:
         return result;
     }
 
-    static bool copy(const std::string& source, const std::string& destination, bool overwrite = true) {
+    static bool copy(const SwString& source, const SwString& destination, bool overwrite = true) {
         // Convertir les chemins en wide strings pour l'API Windows
         std::wstring sourceWide(source.begin(), source.end());
         std::wstring destinationWide(destination.begin(), destination.end());
@@ -273,7 +285,7 @@ public:
         return true;
     }
 
-    static bool copyByChunk(const std::string& source, const std::string& destination,
+    static bool copyByChunk(const SwString& source, const SwString& destination,
                             bool nonBlocking = true, int chunkSize = 1024) {
         // Vérifier si le fichier source existe
         std::ifstream srcStream(source, std::ios::binary);
@@ -285,11 +297,11 @@ public:
         // Vérifier si la destination est un répertoire
         std::string finalDestination = destination;
         struct stat info;
-        if (stat(destination.c_str(), &info) == 0 && (info.st_mode & S_IFDIR)) {
-            size_t lastSlash = source.find_last_of("/\\");
-            std::string fileName = (lastSlash == std::string::npos) ? source : source.substr(lastSlash + 1);
+        if (stat(finalDestination.c_str(), &info) == 0 && (info.st_mode & S_IFDIR)) {
+            size_t lastSlash = source.toStdString().find_last_of("/\\");
+            std::string fileName = (lastSlash == std::string::npos) ? source : source.toStdString().substr(lastSlash + 1);
 
-            if (destination.back() != '/' && destination.back() != '\\') {
+            if (finalDestination.back() != '/' && finalDestination.back() != '\\') {
                 finalDestination += "\\";
             }
             finalDestination += fileName;
@@ -313,7 +325,7 @@ public:
             if (bytesRead == 0) {
                 break; // Rien à lire, fin de la boucle
             }
-            if (nonBlocking) { CoreApplication::instance()->processEvent(); }
+            if (nonBlocking) { SwCoreApplication::instance()->processEvent(); }
 
             destStream.write(buffer.get(), bytesRead); // Écriture des données
         }
@@ -326,8 +338,8 @@ public:
     }
 
 
-    bool copyByChunk(const std::string& destination, bool nonBlocking = true, int chunkSize = 1024) {
-        if (filePath_.empty()) {
+    bool copyByChunk(const SwString& destination, bool nonBlocking = true, int chunkSize = 1024) {
+        if (filePath_.isEmpty()) {
             std::cerr << "Source file path is not set." << std::endl;
             return false;
         }
@@ -342,11 +354,11 @@ public:
         // Vérifier si la destination est un répertoire
         std::string finalDestination = destination;
         struct stat info;
-        if (stat(destination.c_str(), &info) == 0 && (info.st_mode & S_IFDIR)) {
-            size_t lastSlash = filePath_.find_last_of("/\\");
-            std::string fileName = (lastSlash == std::string::npos) ? filePath_ : filePath_.substr(lastSlash + 1);
+        if (stat(destination.toStdString().c_str(), &info) == 0 && (info.st_mode & S_IFDIR)) {
+            size_t lastSlash = filePath_.toStdString().find_last_of("/\\");
+            SwString fileName = (lastSlash == std::string::npos) ? filePath_ : filePath_.toStdString().substr(lastSlash + 1);
 
-            if (destination.back() != '/' && destination.back() != '\\') {
+            if (destination.toStdString().back() != '/' && destination.toStdString().back() != '\\') {
                 finalDestination += "/";
             }
             finalDestination += fileName;
@@ -378,7 +390,7 @@ public:
                 return false;
             }
 
-            if (nonBlocking) { CoreApplication::instance()->processEvent(); }
+            if (nonBlocking) { SwCoreApplication::instance()->processEvent(); }
         }
 
         // Vérifier si tout est bien écrit
@@ -394,9 +406,9 @@ public:
 
 
     // Lire les métadonnées d'un fichier
-    bool getFileMetadata(std::time_t& creationTime, std::time_t& lastAccessTime, std::time_t& lastWriteTime) {
-        HANDLE fileHandle = CreateFileA(
-            filePath_.c_str(),
+    bool getFileMetadata(SwDateTime& creationTime, SwDateTime& lastAccessTime, SwDateTime& lastWriteTime) {
+        HANDLE fileHandle = CreateFileW(
+            filePath_.toStdWString().c_str(),
             GENERIC_READ,
             FILE_SHARE_READ,
             nullptr,
@@ -426,9 +438,9 @@ public:
     }
 
     // Modifier la date de création
-    bool setCreationTime(std::time_t creationTime) {
-        HANDLE fileHandle = CreateFileA(
-            filePath_.c_str(),
+    bool setCreationTime(SwDateTime creationTime) {
+        HANDLE fileHandle = CreateFileW(
+            filePath_.toStdWString().c_str(),
             GENERIC_WRITE,
             FILE_SHARE_WRITE,
             nullptr,
@@ -442,7 +454,7 @@ public:
             return false;
         }
 
-        FILETIME ftCreation = SystemTimeToFileTime(creationTime);
+        FILETIME ftCreation = SystemTimeToFileTime(creationTime.toTimeT());
         if (!SetFileTime(fileHandle, &ftCreation, nullptr, nullptr)) {
             std::cerr << "Erreur lors de la mise à jour de la date de création : " << GetLastError() << std::endl;
             CloseHandle(fileHandle);
@@ -454,9 +466,9 @@ public:
     }
 
     // Modifier la date de dernière modification
-    bool setLastWriteDate(std::time_t lastWriteTime) {
-        HANDLE fileHandle = CreateFileA(
-            filePath_.c_str(),
+    bool setLastWriteDate(SwDateTime lastWriteTime) {
+        HANDLE fileHandle = CreateFileW(
+            filePath_.toStdWString().c_str(),
             GENERIC_WRITE,
             FILE_SHARE_WRITE,
             nullptr,
@@ -470,7 +482,7 @@ public:
             return false;
         }
 
-        FILETIME ftLastWrite = SystemTimeToFileTime(lastWriteTime);
+        FILETIME ftLastWrite = SystemTimeToFileTime(lastWriteTime.toTimeT());
         if (!SetFileTime(fileHandle, nullptr, nullptr, &ftLastWrite)) {
             std::cerr << "Erreur lors de la mise à jour de la date de modification : " << GetLastError() << std::endl;
             CloseHandle(fileHandle);
@@ -482,9 +494,9 @@ public:
     }
 
     // Modifier la date de dernier accès
-    bool setLastAccessDate(std::time_t lastAccessTime) {
-        HANDLE fileHandle = CreateFileA(
-            filePath_.c_str(),
+    bool setLastAccessDate(SwDateTime lastAccessTime) {
+        HANDLE fileHandle = CreateFileW(
+            filePath_.toStdWString().c_str(),
             GENERIC_WRITE,
             FILE_SHARE_WRITE,
             nullptr,
@@ -498,7 +510,7 @@ public:
             return false;
         }
 
-        FILETIME ftLastAccess = SystemTimeToFileTime(lastAccessTime);
+        FILETIME ftLastAccess = SystemTimeToFileTime(lastAccessTime.toTimeT());
         if (!SetFileTime(fileHandle, nullptr, &ftLastAccess, nullptr)) {
             std::cerr << "Erreur lors de la mise à jour de la date de dernier accès : " << GetLastError() << std::endl;
             CloseHandle(fileHandle);
@@ -510,9 +522,9 @@ public:
     }
 
     // Modifier toutes les dates (création, dernier accès, dernière modification)
-    bool setAllDates(std::time_t creationTime, std::time_t lastAccessTime, std::time_t lastWriteTime) {
-        HANDLE fileHandle = CreateFileA(
-            filePath_.c_str(),
+    bool setAllDates(SwDateTime creationTime, SwDateTime lastAccessTime, SwDateTime lastWriteTime) {
+        HANDLE fileHandle = CreateFileW(
+            filePath_.toStdWString().c_str(),
             GENERIC_WRITE,
             FILE_SHARE_WRITE,
             nullptr,
@@ -526,9 +538,9 @@ public:
             return false;
         }
 
-        FILETIME ftCreation = SystemTimeToFileTime(creationTime);
-        FILETIME ftLastAccess = SystemTimeToFileTime(lastAccessTime);
-        FILETIME ftLastWrite = SystemTimeToFileTime(lastWriteTime);
+        FILETIME ftCreation = SystemTimeToFileTime(creationTime.toTimeT());
+        FILETIME ftLastAccess = SystemTimeToFileTime(lastAccessTime.toTimeT());
+        FILETIME ftLastWrite = SystemTimeToFileTime(lastWriteTime.toTimeT());
 
         if (!SetFileTime(fileHandle, &ftCreation, &ftLastAccess, &ftLastWrite)) {
             std::cerr << "Erreur lors de la mise à jour des dates : " << GetLastError() << std::endl;
@@ -540,9 +552,9 @@ public:
         return true;
     }
 
-    std::string fileChecksum()
+    SwString fileChecksum()
     {
-        std::string checksum;
+        SwString checksum;
         if(filePath_ != ""){
             try {
                 checksum = SwCrypto::calculateFileChecksum(filePath_);
@@ -553,8 +565,100 @@ public:
         return checksum;
     }
 
+    bool writeMetadata(const SwString& key, const SwString& value) {
+        // Vérifier si le fichier principal existe
+        if (!isFile(filePath_)) {
+            std::cerr << "Le fichier principal n'existe pas : " << filePath_.toStdString() << std::endl;
+            return false;
+        }
+
+        // Vérifier si le volume est NTFS
+        if (!isNTFS(filePath_)) {
+            std::cerr << "Le fichier n'est pas sur un volume NTFS, impossible d'utiliser les flux ADS." << std::endl;
+            return false;
+        }
+
+        // Construire le chemin complet pour le flux ADS en utilisant la clé comme nom du flux
+        SwString normalizedPath = SwStandardLocation::convertPath(filePath_, SwStandardLocation::PathType::WindowsLong);
+        std::wstring adsPath = normalizedPath.toStdWString() + L":" + key.toStdWString();
+
+        // Ouvrir le flux ADS en mode écriture
+        HANDLE hFile = CreateFileW(
+            adsPath.c_str(),
+            GENERIC_WRITE,
+            FILE_SHARE_WRITE,
+            nullptr,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr
+        );
+
+        if (hFile == INVALID_HANDLE_VALUE) {
+            std::cerr << "Erreur lors de l'ouverture du flux ADS : " << GetLastError() << std::endl;
+            return false;
+        }
+
+        // Écrire la valeur directement dans le flux ADS
+        DWORD bytesWritten;
+        BOOL success = WriteFile(hFile, value.toStdWString().c_str(), value.size() * sizeof(wchar_t), &bytesWritten, nullptr);
+
+        CloseHandle(hFile);
+
+        if (!success) {
+            std::cerr << "Erreur lors de l'écriture dans le flux ADS : " << GetLastError() << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
+
+
+    SwString readMetadata(const SwString& key) {
+        // Construire le chemin vers le flux ADS
+        SwString normalizedPath = SwStandardLocation::convertPath(filePath_, SwStandardLocation::PathType::WindowsLong);
+        std::wstring adsPath = normalizedPath.toStdWString() + L":" + key.toStdWString();
+
+        // Ouvrir le flux ADS en mode lecture
+        HANDLE hFile = CreateFileW(
+            adsPath.c_str(),
+            GENERIC_READ,
+            FILE_SHARE_READ,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr
+        );
+
+        if (hFile == INVALID_HANDLE_VALUE) {
+            std::cerr << "Erreur lors de l'ouverture du flux ADS : " << GetLastError() << std::endl;
+            return SwString();
+        }
+
+        // Lire tout le contenu du flux ADS
+        std::wstring buffer(1024, L'\0'); // Buffer pour lire les données
+        DWORD bytesRead = 0;
+        BOOL success = ReadFile(hFile, &buffer[0], buffer.size() * sizeof(wchar_t), &bytesRead, nullptr);
+
+        CloseHandle(hFile);
+
+        if (!success) {
+            std::cerr << "Erreur lors de la lecture du flux ADS : " << GetLastError() << std::endl;
+            return SwString();
+        }
+
+        // Réduire la taille du buffer à la taille effectivement lue
+        buffer.resize(bytesRead / sizeof(wchar_t));
+
+        // Convertir le contenu lu en SwString et le retourner
+        std::string convertedStr(buffer.begin(), buffer.end());
+        return SwString(convertedStr);
+    }
+
+
+
 signals:
-    DECLARE_SIGNAL(fileChanged, const std::string&);
+    DECLARE_SIGNAL(fileChanged, const SwString&)
 
 protected:
     // Convertir un temps système (std::time_t) en FILETIME
@@ -571,6 +675,47 @@ protected:
         ULONGLONG ull = (static_cast<ULONGLONG>(ft.dwHighDateTime) << 32) + ft.dwLowDateTime;
         return static_cast<std::time_t>((ull - 116444736000000000ULL) / 10000000ULL);
     }
+
+    std::wstring getVolumeRoot(const SwString& filePath) {
+        wchar_t volumeRoot[MAX_PATH] = {0};
+        SwString normalizedPath = SwStandardLocation::convertPath(filePath, SwStandardLocation::PathType::WindowsLong);
+        if (GetVolumePathNameW(normalizedPath.toStdWString().c_str(), volumeRoot, MAX_PATH)) {
+            return std::wstring(volumeRoot);
+        } else {
+            std::wcerr << L"Erreur lors de la récupération du chemin racine : " << GetLastError() << std::endl;
+            return L"";
+        }
+    }
+
+    bool isNTFS(const SwString& filePath) {
+        SwString normalizedPath = SwStandardLocation::convertPath(filePath, SwStandardLocation::PathType::WindowsLong);
+        std::wstring volumeRoot = getVolumeRoot(normalizedPath);
+        if (volumeRoot.empty()) {
+            std::cerr << "Impossible de récupérer le volume racine pour : " << filePath.toStdString() << std::endl;
+            return false;
+        }
+
+        wchar_t fileSystemName[MAX_PATH] = {0};
+        DWORD serialNumber = 0, maxComponentLength = 0, fileSystemFlags = 0;
+
+        if (!GetVolumeInformationW(
+            volumeRoot.c_str(),
+            nullptr,
+            0,
+            &serialNumber,
+            &maxComponentLength,
+            &fileSystemFlags,
+            fileSystemName,
+            MAX_PATH)) {
+            std::cerr << "Impossible de déterminer le type de système de fichiers. Erreur : " << GetLastError() << std::endl;
+            return false;
+        }
+
+        return std::wstring(fileSystemName) == L"NTFS";
+    }
+
+
+
 private:
     std::fstream fileStream_;
     OpenMode currentMode_;

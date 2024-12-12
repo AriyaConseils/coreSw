@@ -19,6 +19,7 @@ public:
     SwList(const SwList& other) = default;
     SwList(SwList&& other) noexcept = default;
     SwList(std::initializer_list<T> init) : data_(init) {}
+    SwList(const std::vector<T>& vec) : data_(vec) {}
     template<typename Iter>
     SwList(Iter begin, Iter end) : data_(begin, end) {}
     // Destructeur
@@ -290,6 +291,27 @@ public:
 
     void removeAll(const T& value) {
         data_.erase(std::remove(data_.begin(), data_.end(), value), data_.end());
+    }
+
+    bool removeOne(const T& value) {
+        auto it = std::find(data_.begin(), data_.end(), value);
+        if (it != data_.end()) {
+            data_.erase(it);
+            return true;
+        }
+        return false;
+    }
+
+    void removeFirst() {
+        if (!data_.empty()) {
+            data_.erase(data_.begin());
+        }
+    }
+
+    void removeLast() {
+        if (!data_.empty()) {
+            data_.pop_back();
+        }
     }
 
     bool replace(size_t index, const T& value) {

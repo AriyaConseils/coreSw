@@ -6,6 +6,8 @@
 #include "SwString.h"
 #include "SwList.h"
 #include <iostream>
+#include "SwRegularExpression.h"
+
 
 class SwStandardLocation {
 public:
@@ -14,7 +16,8 @@ public:
         Windows,         // Chemin Windows classique (ex. "C:\\exemple\\fichier.txt")
         WindowsLong,     // Chemin Windows long (ex. "\\\\?\\C:\\exemple\\fichier.txt")
         Unix,            // Chemin Unix (ex. "/c/exemple/fichier.txt")
-        Mixed            // Chemin mixte (ex. "C:/exemple/fichier.txt")
+        Mixed,           // Chemin mixte (ex. "C:/exemple/fichier.txt")
+        Undefined
     };
 
 
@@ -135,42 +138,98 @@ public:
             return SwString();
         }
 
-        SwString result = path;
+        // Nettoyage initial : suppression des espaces en début et fin
+        SwString cleanedPath = path.trimmed();
 
+        // Vérification si le chemin est absolu
+        SwRegularExpression absolutePattern(R"(^([a-zA-Z]:[\\/]|[\\/]{2}|/))"); // C:\, \\ ou /
+        if (!absolutePattern.match(cleanedPath).hasMatch()) {
+            std::cerr << "Warning: Path is relative, ensure proper handling!" << std::endl;
+        }
+
+         // Détection du type initial de chemin
+         PathType initialType = PathType::Undefined;
+
+         // Détection des chemins Windows longs
+         if (cleanedPath.startsWith("\\\\?\\")) {
+             initialType = PathType::WindowsLong;
+             cleanedPath = cleanedPath.mid(4); // Retirer le préfixe "\\?\".
+         }
+         // Détection des chemins Windows standards
+         else if (SwRegularExpression(R"(^[a-zA-Z]:)").match(cleanedPath).hasMatch()) {
+             initialType = PathType::Windows;
+         }
+         // Détection des chemins Unix
+         else if (cleanedPath.startsWith("/") || cleanedPath.startsWith("\\")) {
+             initialType = PathType::Unix;
+             char disk = SwString(cleanedPath[1]).toUpper().toStdString()[0];
+             cleanedPath = cleanedPath.mid(3);
+             cleanedPath.prepend("\\").prepend(":").prepend(disk);
+         }
+
+         // Application des transformations en fonction du type cible
+         SwString result = cleanedPath;
+
+        // Application des transformations en fonction du type
         switch (type) {
             case PathType::Windows: {
-                // Convertir les '/' en '\'
-                result.replace("/", "\\");
+                // Remplacer tous les '/' par '\'
+                SwRegularExpression unixToWindows(R"(/)");
+                SwRegularExpressionMatch match;
+                while ((match = unixToWindows.match(result)).hasMatch()) {
+                    SwString toReplace = match.captured(); // Substring trouvée
+                    result = result.replace(toReplace, "\\");
+                }
                 break;
             }
             case PathType::WindowsLong: {
                 // Ajouter le préfixe '\\?\' si nécessaire
-                if (!result.startsWith("\\\\?\\")) {
-                    result.prepend("\\\\?\\");
+                SwRegularExpression longPathPattern(R"(^(?!\\\\\\?\\))");
+                if (longPathPattern.match(result).hasMatch()) {
+                    result = SwString("\\\\?\\") + result;
                 }
-                // Convertir les '/' en '\'
-                result.replace("/", "\\");
+
+                // Remplacer tous les '/' par '\'
+                SwRegularExpression unixToWindows(R"(/)");
+                SwRegularExpressionMatch match;
+                while ((match = unixToWindows.match(result)).hasMatch()) {
+                    SwString toReplace = match.captured(); // Substring trouvée
+                    result = result.replace(toReplace, "\\");
+                }
                 break;
             }
             case PathType::Unix: {
-                // Convertir les '\' en '/'
-                result.replace("\\", "/");
+                // Remplacer tous les '\' par '/'
+                SwRegularExpression windowsToUnix(R"(\\)");
+                SwRegularExpressionMatch match;
+                while ((match = windowsToUnix.match(result)).hasMatch()) {
+                    SwString toReplace = match.captured(); // Substring trouvée
+                    result = result.replace(toReplace, "/");
+                }
 
-                // Remplacer "C:" par "/c" pour un chemin Windows
-                if (result.length() > 2 && result[1] == ':' && std::isalpha(result[0])) {
-                    result = SwString("/") + SwString(result[0]).toLower() + result.mid(2);
+                // Transformer "C:" en "/c" pour les chemins Windows
+                SwRegularExpression driveLetterPattern(R"(^([a-zA-Z]):)");
+                SwRegularExpressionMatch driveMatch = driveLetterPattern.match(result);
+                if (driveMatch.hasMatch()) {
+                    result = SwString("/") + driveMatch.captured(1).toLower() + result.mid(driveMatch.capturedEnd());
                 }
                 break;
             }
             case PathType::Mixed: {
-                // Convertir les '\' en '/'
-                result.replace("\\", "/");
+                // Remplacer tous les '\' par '/'
+                SwRegularExpression windowsToUnix(R"(\\)");
+                SwRegularExpressionMatch match;
+                while ((match = windowsToUnix.match(result)).hasMatch()) {
+                    SwString toReplace = match.captured(); // Substring trouvée
+                    result = result.replace(toReplace, "/");
+                }
                 break;
             }
         }
 
         return result;
     }
+
 
 private:
     // Mapping des types vers REFKNOWNFOLDERID

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CoreApplication.h"
+#include "SwCoreApplication.h"
 #include <windows.h>
 #include <gdiplus.h>
 
@@ -123,14 +123,14 @@ private:
     decltype(&Gdiplus::GdiplusShutdown) gdiplusShutdown;
 };
 
-class GuiApplication : public CoreApplication {
+class SwGuiApplication : public SwCoreApplication {
 public:
-    GuiApplication() : CoreApplication() {
+    SwGuiApplication() : SwCoreApplication() {
         // Initialiser GDI+ via SwGdiPlusEngine
         SwGdiPlusEngine::instance().initialize();
     }
 
-    ~GuiApplication()  {
+    ~SwGuiApplication()  {
         // Arrêter proprement GDI+ dans le destructeur
         SwGdiPlusEngine::instance().shutdown();
     }
@@ -140,7 +140,7 @@ public:
         while (true) {
             while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
                 if (msg.message == WM_QUIT) {
-                    CoreApplication::exit(0);
+                    SwCoreApplication::exit(0);
                     return 0;
                 }
                 TranslateMessage(&msg);

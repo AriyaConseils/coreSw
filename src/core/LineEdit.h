@@ -3,12 +3,12 @@
 #include "SwWidget.h"
 #include <string>
 #include <algorithm> 
-#include "Timer.h"
+#include "SwTimer.h"
 
 // echo mode ●●●●●●●●●●
-class LineEdit : public SwWidget {
+class SwLineEdit : public SwWidget {
 
-    SW_OBJECT(LineEdit, SwWidget)
+    SW_OBJECT(SwLineEdit, SwWidget)
 
     CUSTOM_PROPERTY(std::string, Text, "") {
         cursorPos = getText().size();
@@ -51,7 +51,7 @@ class LineEdit : public SwWidget {
     }
 
 public:
-    LineEdit(const std::string& placeholderText = "", SwWidget* parent = nullptr)
+    SwLineEdit(const std::string& placeholderText = "", SwWidget* parent = nullptr)
         : SwWidget(parent), cursorPos(0),
           selectionStart(0), selectionEnd(0), isSelecting(false) {
         width = 300;
@@ -63,13 +63,13 @@ public:
         }));
         this->setFocusPolicy(FocusPolicyEnum::Strong);
         std::string css = R"(
-            LineEdit {
+            SwLineEdit {
                 border-radius: 10px;  
             }
         )";
         this->setStyleSheet(css);
 
-        monitorTimer = new Timer(500);
+        monitorTimer = new SwTimer(500);
         connect(monitorTimer, SIGNAL(timeout), std::function<void()>([&]() {
             if (this->getFocus() == true) {
                 update();
@@ -86,12 +86,12 @@ public:
             }));
     }
 
-    LineEdit(SwWidget* parent = nullptr)
+    SwLineEdit(SwWidget* parent = nullptr)
         : SwWidget(parent), cursorPos(0),
         selectionStart(0), selectionEnd(0), isSelecting(false) {
 
         std::string css = R"(
-            LineEdit {
+            SwLineEdit {
                 border-radius: 10px;  
             }
         )";
@@ -105,7 +105,7 @@ public:
             setDisplayText(text);
         }));  
 
-        monitorTimer = new Timer(500);
+        monitorTimer = new SwTimer(500);
         connect(monitorTimer, SIGNAL(timeout), std::function<void()>([&]() {
             if (this->getFocus() == true) {
                 update();
@@ -410,7 +410,7 @@ private:
     size_t selectionStart;     // Début de la sélection
     size_t selectionEnd;       // Fin de la sélection
     bool isSelecting;          // Indique si une sélection est en cours
-    Timer* monitorTimer;
+    SwTimer* monitorTimer;
 
     // Obtenir l'index du caractère à une position x
     size_t getCharacterIndexAtPosition(int xPos) {

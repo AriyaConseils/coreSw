@@ -1,6 +1,9 @@
 #pragma once
 #include "SwFlags.h"
 
+#ifndef SW_UNUSED
+#define SW_UNUSED(x) (void)(x);
+#endif
 
 // Définition des types avec le préfixe "Sw"
 struct SwSize {

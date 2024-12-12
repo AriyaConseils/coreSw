@@ -5,13 +5,13 @@
 #include <stdexcept>
 #include <sstream>
 #include <iomanip>
-
+#include <math.h>
 class SwDateTime {
 public:
     // Constructeurs
     SwDateTime() : time_(std::time(nullptr)) {} // Date/heure actuelle
 
-    explicit SwDateTime(std::time_t time) : time_(time) {} // Constructeur avec std::time_t
+    SwDateTime(std::time_t time) : time_(time) {} // Constructeur avec std::time_t
 
     SwDateTime(int year, int month, int day, int hour = 0, int minute = 0, int second = 0) {
         setDateTime(year, month, day, hour, minute, second);
@@ -154,7 +154,7 @@ public:
             newMonth += 12;
             newYear -= 1;
         }
-        int day = std::min(local.tm_mday, daysInMonth(newYear, newMonth + 1));
+        int day = (local.tm_mday < daysInMonth(newYear, newMonth + 1))?local.tm_mday : daysInMonth(newYear, newMonth + 1);
         return SwDateTime(newYear, newMonth + 1, day, local.tm_hour, local.tm_min, local.tm_sec);
     }
 

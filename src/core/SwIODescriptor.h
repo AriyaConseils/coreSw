@@ -11,12 +11,12 @@
 #endif
 
 
-class IODescriptor {
+class SwIODescriptor {
 public:
-    IODescriptor(HANDLE hFile, std::string descriptorName = "") : handle(hFile), m_descriptorName(descriptorName) {
+    SwIODescriptor(HANDLE hFile, std::string descriptorName = "") : handle(hFile), m_descriptorName(descriptorName) {
     }
 
-    virtual ~IODescriptor() {
+    virtual ~SwIODescriptor() {
         if (handle != INVALID_HANDLE_VALUE) {
             CloseHandle(handle);
             handle = INVALID_HANDLE_VALUE;

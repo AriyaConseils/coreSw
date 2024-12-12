@@ -15,6 +15,7 @@
 #include <stdexcept>
 
 class SwString {
+
 public:
     // Constructeurs
     SwString() : data_("") {} // Constructeur par d�faut
@@ -78,6 +79,7 @@ public:
     SwString operator+(const SwString& other) const {
         return SwString(data_ + other.data_);
     }
+
 
     bool operator==(const SwString& other) const {
         return data_ == other.data_;
@@ -144,18 +146,19 @@ public:
     }
 
     int toInt(bool* ok = nullptr) const {
+        int result = 0;
         try {
-            int result = std::stoi(data_);
+            result = std::stoi(data_);
             if (ok) {
                 *ok = true; // Conversion r�ussie
             }
-            return result;
         } catch (const std::exception&) {
             if (ok) {
                 *ok = false; // Conversion �chou�e
             }
             std::cerr << "Invalid int conversion in SwString: " << data_ << std::endl;
         }
+        return result;
     }
 
 
@@ -385,9 +388,13 @@ public:
         return data_.compare(data_.size() - suffix.size(), suffix.size(), suffix.data_) == 0;
     }
 
-    size_t indexOf(const SwString& substring) const {
-        size_t pos = data_.find(substring.data_);
-        return (pos != std::string::npos) ? pos : -1; // Retourne -1 si non trouv�
+    int indexOf(const SwString& substring, size_t startIndex = 0) const {
+        if (startIndex >= data_.size()) {
+            return -1;
+        }
+
+        size_t pos = data_.find(substring.data_, startIndex);
+        return (pos != std::string::npos) ? static_cast<int>(pos) : -1;
     }
 
     size_t lastIndexOf(const SwString& substring) const {
@@ -433,6 +440,19 @@ public:
         return SwString(lower);
     }
 
+    static SwString fromWString(const std::wstring& wideStr) {
+        if (wideStr.empty()) {
+            return SwString();
+        }
+        int bufferSize = WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (bufferSize <= 0) {
+            return SwString();
+        }
+        std::string utf8Str(bufferSize - 1, '\0'); // bufferSize - 1 pour ignorer le caractère nul final
+        WideCharToMultiByte(CP_UTF8, 0, wideStr.c_str(), -1, &utf8Str[0], bufferSize, nullptr, nullptr);
+        return SwString(utf8Str);
+    }
+
     static SwString fromWCharArray(const wchar_t* wideStr) {
         if (!wideStr) {
             return SwString();
@@ -447,6 +467,9 @@ public:
     }
 
     SwString& replace(const SwString& oldSub, const SwString& newSub) {
+        if(oldSub == "" || oldSub == "\0"){
+            return *this;
+        }
         size_t pos = 0;
         while ((pos = data_.find(oldSub.data_, pos)) != std::string::npos) {
             data_.replace(pos, oldSub.size(), newSub.data_);
@@ -588,9 +611,23 @@ public:
     }
 
     std::wstring toStdWString() const {
-        return std::wstring(data_.begin(), data_.end());
-    }
+        if (data_.empty()) {
+            return std::wstring();
+        }
 
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, data_.c_str(), -1, nullptr, 0);
+        if (size_needed <= 0) {
+            throw std::runtime_error("Failed to convert string to wstring");
+        }
+
+        std::wstring wstr(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, data_.c_str(), -1, &wstr[0], size_needed);
+
+        // Remove the extra null character added by MultiByteToWideChar
+        wstr.pop_back();
+
+        return wstr;
+    }
 
     const char* toLatin1() const {
         static std::string latin1String;
@@ -614,7 +651,13 @@ public:
         return latin1String.c_str();
     }
 
+    static SwString fromLatin1(const char* str, size_t length) {
+        return SwString(std::string(str, length));
+    }
 
+    void resize(int newSize) {
+        data_.resize(static_cast<size_t>(newSize));
+    }
 
     const char* data() const {
         return data_.data();
@@ -647,6 +690,23 @@ public:
     size_t utf32Size() const {
         return std::u32string(data_.begin(), data_.end()).size();
     }
+
+    SwString& chop(int n) {
+        if (n <= 0) {
+            return *this;
+        }
+
+        if (static_cast<size_t>(n) >= data_.size()) {
+            data_.clear();
+        } else {
+            data_.erase(data_.size() - static_cast<size_t>(n));
+        }
+
+        return *this;
+    }
+
+
+    friend SwString operator+(const char* lhs, const SwString& rhs);
 
 #ifdef QT_CORE_LIB
     friend QDebug operator<<(QDebug debug, const SwString& str) {
@@ -702,6 +762,12 @@ private:
 };
 
 
+inline SwString operator+(const char* lhs, const SwString& rhs) {
+    // Construit un SwString à partir de lhs puis utilise l'opérateur existant
+    return SwString(lhs) + rhs;
+}
+
+
 #include <functional>
 
 namespace std {
@@ -712,4 +778,6 @@ struct hash<SwString> {
     }
 };
 }
+
+using SwStringList = SwList<SwString>;
 #endif // SWSTRING_H

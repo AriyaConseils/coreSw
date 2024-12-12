@@ -3,10 +3,10 @@
 
 #include <iostream>
 #include "PushButton.h"
-#include "CoreApplication.h"
-#include "Timer.h"
-#include "EventLoop.h"
-#include "Process.h"
+#include "SwCoreApplication.h"
+#include "SwTimer.h"
+#include "SwEventLoop.h"
+#include "SwProcess.h"
 #include "SwString.h"
 #include "SwJsonDocument.h" // Assurez-vous que ce fichier est correctement configuré
 

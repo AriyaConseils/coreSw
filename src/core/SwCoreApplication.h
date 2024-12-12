@@ -12,10 +12,16 @@
 #include <algorithm>  // Pour std::max
 #include <windows.h>
 #include "SwAny.h"
+#include "SwMap.h"
+
+
+
+
+
 
 // Classe _T pour les tâches périodiques en microsecondes
 class _T {
-    friend class CoreApplication;
+    friend class SwCoreApplication;
 
 public:
     // Constructeur
@@ -51,15 +57,25 @@ private:
 
 
 // Classe CoreApplication pour gérer la boucle d'événements en microsecondes
-class CoreApplication {
+class SwCoreApplication {
+    friend class SwTimer;
+    friend class SwEventLoop;
 public:
-    CoreApplication() : running(true), exitCode(0) {
+    SwCoreApplication() : running(true), exitCode(0) {
         instance(false) = this;
         enableHighPrecisionTimers();
         SwAny::registerAllType();
     }
+    SwCoreApplication(int argc, char* argv[])
+        : running(true), exitCode(0) {
+        instance(false) = this;
+        enableHighPrecisionTimers();
+        SwAny::registerAllType();
 
-    ~CoreApplication() {
+        parseArguments(argc, argv);
+    }
+
+    ~SwCoreApplication() {
         disableHighPrecisionTimers();
     }
 
@@ -187,13 +203,35 @@ public:
     }
 
 
-    static CoreApplication* &instance(bool create = true) {
-        static CoreApplication* _mainApp = nullptr;
+    static SwCoreApplication* &instance(bool create = true) {
+        static SwCoreApplication* _mainApp = nullptr;
 
         if(!_mainApp && create)
-            _mainApp = new CoreApplication();
+            _mainApp = new SwCoreApplication();
 
         return _mainApp;
+    }
+
+    SwString getArgument(const SwString& key, const SwString& defaultValue = "") const {
+        if (parsedArguments.contains(key)) {
+            return parsedArguments[key];
+        }
+        return defaultValue;
+    }
+
+    bool hasArgument(const SwString& key) const {
+        return parsedArguments.contains(key);
+    }
+
+    SwList<SwString> getPositionalArguments() const {
+        SwList<SwString> positionalArgs;
+        for (auto it = parsedArguments.begin(); it != parsedArguments.end(); ++it) {
+            const SwString& key = it->first;
+            if (!key.startsWith("-")) {
+                positionalArgs.append(key);
+            }
+        }
+        return positionalArgs;
     }
 
 private:
@@ -244,6 +282,49 @@ private:
         SetThreadPriority(thread, THREAD_PRIORITY_HIGHEST);
     }
 
+    void parseArguments(int argc, char* argv[]) {
+        SwString lastKey = ""; // Garde en mémoire la dernière clé rencontrée
+
+        for (int i = 1; i < argc; ++i) {
+            SwString arg = argv[i];
+
+            if (arg.startsWith("--")) { // Option longue (--option)
+                auto eqPos = arg.indexOf('=');
+                if (eqPos != -1) {
+                    // Format --option=value
+                    SwString key = arg.mid(2, eqPos - 2); // Clé après "--" jusqu'à '='
+                    SwString value = arg.mid(eqPos + 1);  // Valeur après '='
+                    parsedArguments[key] = value;
+                    lastKey = key; // Mémorise cette clé
+                } else {
+                    // Format --option [value]
+                    SwString key = arg.mid(2); // Clé après "--"
+                    SwString value = "";
+                    if (i + 1 < argc && !SwString(argv[i + 1]).startsWith("-")) {
+                        value = argv[++i]; // La valeur est l'argument suivant s'il ne commence pas par '-'
+                    }
+                    parsedArguments[key] = value;
+                    lastKey = key; // Mémorise cette clé
+                }
+            } else if (arg.startsWith("-")) { // Option courte (-o)
+                SwString key = arg.mid(1); // Clé après "-"
+                SwString value = "";
+                if (i + 1 < argc && !SwString(argv[i + 1]).startsWith("-")) {
+                    value = argv[++i]; // La valeur est l'argument suivant s'il ne commence pas par '-'
+                }
+                parsedArguments[key] = value;
+                lastKey = key; // Mémorise cette clé
+            } else {
+                // Si l'argument ne commence pas par '-' ou '--', on l'ajoute à la valeur de la dernière clé
+                if (!lastKey.isEmpty()) {
+                    parsedArguments[lastKey] += SwString(" ") + arg;
+                }
+            }
+        }
+    }
+
+
+
 private:
     bool running;
     int exitCode;
@@ -252,4 +333,5 @@ private:
     std::condition_variable cv;
     int nextTimerId = 0;
     std::map<int, _T*> timers;
+    SwMap<SwString, SwString> parsedArguments;
 };

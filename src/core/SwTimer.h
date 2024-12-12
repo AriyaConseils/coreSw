@@ -1,34 +1,34 @@
 #pragma once
 
 #include "Object.h"
-#include "CoreApplication.h"
+#include "SwCoreApplication.h"
 
 /**
  * @class Timer
  * @brief Provides a timer implementation for periodic execution of tasks.
  */
-class Timer : public Object 
+class SwTimer : public Object
 {
 
 public:
 
     /**
-     * @brief Constructs a Timer object.
+     * @brief Constructs a SwTimer object.
      *
      * @param ms The interval in milliseconds for the timer (default is 1000 ms).
      * @param parent The parent object for the timer.
      */
-    Timer(int ms = 1000, Object *parent = nullptr)
+    SwTimer(int ms = 1000, Object *parent = nullptr)
         : Object(parent), interval(ms*1000), running(false), timerId(-1) {
     }
 
     /**
-     * @brief Destructor to clean up the timer resources.
+     * @brief Destructor to clean up the SwTimer resources.
      */
-    virtual ~Timer() {
+    virtual ~SwTimer() {
         stop();
         if (timerId != -1) {
-            CoreApplication::instance()->removeTimer(timerId);
+            SwCoreApplication::instance()->removeTimer(timerId);
         }
     }
 
@@ -49,7 +49,7 @@ public:
     void start() {
         if (!running) {
             running = true;
-            timerId = CoreApplication::instance()->addTimer([this]() {
+            timerId = SwCoreApplication::instance()->addTimer([this]() {
                 if (running) {
                     emit timeout();
                 }
@@ -65,10 +65,10 @@ public:
             running = false;
             if (timerId != -1) {
                 int currentTimerId = timerId;
-                CoreApplication::instance()->postEvent([currentTimerId]() {
+                SwCoreApplication::instance()->postEvent([currentTimerId]() {
                     //pour pouvoir fait un stop alors que je suis deja dans un timer
                     //programmer un event
-                    CoreApplication::instance()->removeTimer(currentTimerId);
+                    SwCoreApplication::instance()->removeTimer(currentTimerId);
                 });
                 timerId = -1;
             }
@@ -82,9 +82,9 @@ public:
      * @param callback The callback function to execute.
      */
     static void singleShot(int ms, std::function<void()> callback) {
-        Timer* tempTimer = new Timer(ms);
+        SwTimer* tempTimer = new SwTimer(ms);
 
-        tempTimer->connect(tempTimer, "timeout", std::function<void(void)>([callback, tempTimer]() {
+        tempTimer->connect(tempTimer, SIGNAL(timeout), std::function<void(void)>([callback, tempTimer]() {
             callback();
             tempTimer->stop();
             tempTimer->deleteLater();
@@ -102,5 +102,5 @@ signals:
 private:
     int interval;    ///< The interval in microseconds for the timer.
     bool running;    ///< Indicates if the timer is currently running.
-    int timerId;     ///< The unique identifier for the timer in the CoreApplication instance.
+    int timerId;     ///< The unique identifier for the timer in the SwCoreApplication instance.
 };
