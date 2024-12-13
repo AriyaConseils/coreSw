@@ -66,11 +66,17 @@ The library includes a styling system that allows developers to customize the ap
 ### Process Management
 The `SwProcess` class in coreSw allows for process management, enabling the launch and control of external executables. This feature is particularly useful for applications that need to interact with other software or scripts, providing robust integration with the operating system.
 
-### Planned Features
+### Network Management
 
-1. **Networking Support**: Future plans include adding a TCP socket and TCP server class to enable network communication, facilitating client-server architectures and network-based applications.
-2. **Extended UI Components**: Additional UI widgets and layout options will be introduced, expanding the capabilities of the library for more complex user interfaces.
-3. **Enhanced Styling Options**: Planned improvements to the styling system will offer more customization options, allowing developers greater control over the look and feel of their applications.
+The **Network Management** module is currently under active development and is already functional. It provides asynchronous handling of network operations, enabling the creation of both clients and servers. This allows developers to build robust client-server architectures and network-based applications with ease. Key features include:
+
+- **Asynchronous Communication**: Manage network operations without blocking the main application thread, ensuring responsive and efficient performance.
+- **SwTcpSocket**: Handle TCP connections asynchronously, supporting both client and server roles.
+- **SwTcpServer**: Listen for and accept incoming TCP client connections, facilitating the creation of network servers.
+- **SwNetworkAccessManager**: Perform asynchronous HTTP requests, enabling seamless communication with web services and APIs.
+- **Efficient Client Management**: Utilize internal mapping and buffer handling to manage multiple client connections effectively.
+
+These components work together to provide a flexible and scalable networking solution, making it easier to implement complex network interactions in your applications.
 
 ## Goals
 
