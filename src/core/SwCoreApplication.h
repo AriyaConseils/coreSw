@@ -64,13 +64,11 @@ public:
     SwCoreApplication() : running(true), exitCode(0) {
         instance(false) = this;
         enableHighPrecisionTimers();
-        SwAny::registerAllType();
     }
     SwCoreApplication(int argc, char* argv[])
         : running(true), exitCode(0) {
         instance(false) = this;
         enableHighPrecisionTimers();
-        SwAny::registerAllType();
 
         parseArguments(argc, argv);
     }

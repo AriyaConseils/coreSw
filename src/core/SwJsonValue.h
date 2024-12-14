@@ -339,6 +339,26 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Checks if the current SwJsonValue is valid.
+     *        For Object and Array types, it ensures the underlying pointers are not null.
+     *        For Null, Boolean, Integer, Double, and String, there are no particular constraints.
+     * @return true if the value is considered valid, false otherwise.
+     */
+    bool isValid() const {
+        switch (type_) {
+        case Type::Object:
+            return (objectValue_ != nullptr);
+        case Type::Array:
+            return (arrayValue_ != nullptr);
+        case Type::Boolean:
+        case Type::Integer:
+        case Type::Double:
+        case Type::String:
+            return true;
+        }
+        return false;
+    }
 
 private:
     Type type_; ///< The type of the JSON value.

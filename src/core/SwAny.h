@@ -20,12 +20,15 @@
 
 
 class SwAny {
-public:
 
-    static void registerAllType() {
-        static bool isInit = false;
-        if(isInit) return;
-        isInit = true;
+protected:
+    static bool registerAllTypeOnce() {
+        static bool oneCheck = registerAllType();
+        return oneCheck;
+    }
+
+    static bool registerAllType() {
+        std::cerr << "********************CALL ONCE NOT TWICE********************" << std::endl;
         registerMetaType<SwFont>();
         registerMetaType<SwString>();
         registerMetaType<SwJsonValue>();
@@ -34,8 +37,53 @@ public:
         registerMetaType<SwJsonDocument>();
         registerMetaType<DrawTextFormats>();
         registerMetaType<EchoModeEnum>();
-    }
 
+        SwAny::registerConversion<const char*, SwString>([](const char* cstr) {
+            return SwString(cstr);
+        });
+
+        // std::string -> SwString
+        SwAny::registerConversion<std::string, SwString>([](const std::string& s) {
+            return SwString(s);
+        });
+
+        // Conversions depuis SwString vers std::string
+        SwAny::registerConversion<SwString, std::string>([](const SwString& s) {
+            return s.toStdString();
+        });
+
+        // Conversion depuis SwString vers const char*
+        // On utilise un buffer thread_local pour assurer la validité du pointeur c_str.
+        SwAny::registerConversion<SwString, const char*>([](const SwString& s) {
+            thread_local static std::string buffer;
+            buffer = s.toStdString();
+            return buffer.c_str();
+        });
+
+        // Conversion depuis SwString vers std::vector<uint8_t> (byte array)
+        SwAny::registerConversion<SwString, std::vector<uint8_t>>([](const SwString& s) {
+            const std::string& strVal = s.toStdString();
+            return std::vector<uint8_t>(strVal.begin(), strVal.end());
+        });
+
+        // Conversion depuis SwString vers int
+        // Nécessite que le contenu du SwString soit convertible (par ex. "123")
+        SwAny::registerConversion<SwString, int>([](const SwString& s) {
+            return s.toInt();
+        });
+
+        // Conversion depuis SwString vers float
+        SwAny::registerConversion<SwString, float>([](const SwString& s) {
+            return s.toFloat();
+        });
+
+        // Conversion depuis SwString vers double
+        SwAny::registerConversion<SwString, double>([](const SwString& s) {
+            return static_cast<double>(s.toFloat());
+        });
+        return true;
+    }
+    bool registeredType = registerAllTypeOnce();
 private:
     // Union pour stocker plusieurs types
     union Storage {
@@ -59,7 +107,7 @@ public:
     SwAny(const std::string& value) { store(value); }
     SwAny(const char* value) { store(std::string(value)); }
     SwAny(const std::vector<uint8_t>& value) { store(value); }
-
+    SwAny(const SwString& value) { store(value); }
 
     SwAny(const SwAny& other) {
         copyFrom(other);
@@ -84,6 +132,84 @@ public:
 
     // Destructeur
     ~SwAny() { clear(); }
+
+
+    // Méthode statique pour enregistrer une conversion possible entre deux types
+    // On demande un lambda ou une fonction qui explique comment convertir From -> To.
+    template<typename From, typename To>
+    static void registerConversion(std::function<To(const From&)> converterFunc) {
+        auto fromName = std::string(typeid(From).name());
+        auto toName = std::string(typeid(To).name());
+
+        // Enregistrer dans la map qu'une conversion de fromName vers toName est possible
+        getConversionRules()[fromName].push_back(toName);
+
+        // Enregistrer la fonction de conversion dans une autre map
+        // Ici on encapsule converterFunc dans un lambda générique prenant un SwAny et retournant un SwAny
+        getConverters()[std::make_pair(fromName, toName)] = [converterFunc](const SwAny& any) -> SwAny {
+            // On sait que any stocke un From
+            From val = any.get<From>();
+            To convertedVal = converterFunc(val);
+            return SwAny::from(convertedVal);
+        };
+    }
+
+    // Version avec std::string
+    bool canConvert(const std::string& targetName) const {
+        // Vérification du type exact
+        if (typeNameStr == targetName) {
+            return true;
+        }
+        // Vérification des règles de conversion
+        auto& rules = getConversionRules();
+        auto it = rules.find(typeNameStr);
+        if (it != rules.end()) {
+            const auto& targets = it->second;
+            for (auto& possibleTarget : targets) {
+                if (possibleTarget == targetName) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Version template qui appelle la version string
+    template<typename T>
+    bool canConvert() const {
+        auto targetName = std::string(typeid(T).name());
+        return canConvert(targetName);
+    }
+
+
+    // Version avec std::string pour la conversion
+    SwAny convert(const std::string& targetName) const {
+        // Si le type actuel est déjà le bon
+        if (typeNameStr == targetName) {
+            return *this; // Pas besoin de convertir
+        }
+
+        // Vérifions si une règle de conversion existe
+        auto& converters = getConverters();
+        auto key = std::make_pair(typeNameStr, targetName);
+        auto it = converters.find(key);
+        if (it != converters.end()) {
+            // Appeler la fonction de conversion
+            return it->second(*this);
+        } else {
+            std::cerr << "No conversion rule registered from " << typeNameStr << " to " << targetName << std::endl;
+            return SwAny(); // Retourne un SwAny vide si impossible
+        }
+    }
+
+    // Version template qui appelle la version string
+    template<typename T>
+    SwAny convert() const {
+        auto targetName = std::string(typeid(T).name());
+        return convert(targetName);
+    }
+
 
     // Récupération du type sous forme de string
     std::string typeName() const { return typeNameStr; }
@@ -143,9 +269,6 @@ public:
             std::cerr << "Error: Null pointer or empty type name provided to fromVoidPtr." << std::endl;
             return SwAny(); // Retourner une instance vide si le pointeur ou le type est invalide
         }
-
-        registerAllType();
-
         // Gestion des types natifs et standard
         if (typeNameStr == typeid(int).name()) {
             return SwAny(*static_cast<int*>(ptr));
@@ -194,8 +317,6 @@ public:
 
     // Méthode pour obtenir un pointeur générique vers les données
     void* data() const {
-        // Enregistrement des types si nécessaire
-        registerAllType();
         // Gestion des types natifs
         if (typeNameStr == typeid(int).name()) {
             return const_cast<void*>(static_cast<const void*>(&storage.i));
@@ -371,128 +492,242 @@ public:
         return _dynamicMoveFrom;
     }
 
+    // Map statique : nom du type source -> liste de noms de types cibles
+    static std::map<std::string, std::vector<std::string>>& getConversionRules() {
+        static std::map<std::string, std::vector<std::string>> conversionRules;
+        return conversionRules;
+    }
+
+    // Map statique pour stocker les fonctions de conversion
+    // Clé : (fromType, toType)
+    static std::map<std::pair<std::string, std::string>, std::function<SwAny(const SwAny&)>>& getConverters() {
+        static std::map<std::pair<std::string, std::string>, std::function<SwAny(const SwAny&)>> converters;
+        return converters;
+    }
+
 
 public:
+
     /**
-     * @brief Convertit la valeur stockée dans SwAny en un entier.
-     *
-     * @return int La valeur convertie si le type est int, sinon retourne 0 avec un message d'erreur dans std::cerr.
-     */
+ * @brief Convertit la valeur stockée dans SwAny en un entier.
+ *
+ * Si le type interne n'est pas un entier mais peut être converti en entier
+ * (via une règle de conversion préalablement enregistrée), la conversion est tentée.
+ *
+ * @return int La valeur convertie si possible, sinon retourne 0 avec un message d'erreur dans std::cerr.
+ */
     int toInt() const {
-        return typeNameStr == typeid(int).name()
-                   ? get<int>()
-                   : (std::cerr << "Error: Not an int. Current type: " << typeNameStr << std::endl, 0);
+        if (typeNameStr == typeid(int).name()) {
+            return get<int>();
+        } else if (canConvert<int>()) {
+            SwAny converted = convert<int>();
+            return converted.get<int>();
+        } else {
+            std::cerr << "Error: Not convertible to int. Current type: " << typeNameStr << std::endl;
+            return 0;
+        }
     }
 
     /**
-     * @brief Convertit la valeur stockée dans SwAny en un float.
-     *
-     * @return float La valeur convertie si le type est float, sinon retourne 0.0f avec un message d'erreur dans std::cerr.
-     */
+ * @brief Convertit la valeur stockée dans SwAny en un float.
+ *
+ * Si le type interne n'est pas un float mais peut être converti en float,
+ * la conversion est tentée.
+ *
+ * @return float La valeur convertie si possible, sinon retourne 0.0f avec un message d'erreur dans std::cerr.
+ */
     float toFloat() const {
-        return typeNameStr == typeid(float).name()
-                   ? get<float>()
-                   : (std::cerr << "Error: Not a float. Current type: " << typeNameStr << std::endl, 0.0f);
+        if (typeNameStr == typeid(float).name()) {
+            return get<float>();
+        } else if (canConvert<float>()) {
+            SwAny converted = convert<float>();
+            return converted.get<float>();
+        } else {
+            std::cerr << "Error: Not convertible to float. Current type: " << typeNameStr << std::endl;
+            return 0.0f;
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un double.
      *
-     * @return double La valeur convertie si le type est double, sinon retourne 0.0 avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas un double mais peut être converti en double,
+     * la conversion est tentée.
+     *
+     * @return double La valeur convertie si possible, sinon retourne 0.0 avec un message d'erreur dans std::cerr.
      */
     double toDouble() const {
-        return typeNameStr == typeid(double).name()
-                   ? get<double>()
-                   : (std::cerr << "Error: Not a double. Current type: " << typeNameStr << std::endl, 0.0);
+        if (typeNameStr == typeid(double).name()) {
+            return get<double>();
+        } else if (canConvert<double>()) {
+            SwAny converted = convert<double>();
+            return converted.get<double>();
+        } else {
+            std::cerr << "Error: Not convertible to double. Current type: " << typeNameStr << std::endl;
+            return 0.0;
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un tableau d'octets.
      *
-     * @return std::vector<uint8_t> La valeur convertie si le type est std::vector<uint8_t>, sinon retourne un tableau vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas std::vector<uint8_t> mais peut être converti vers ce type,
+     * la conversion est tentée.
+     *
+     * @return std::vector<uint8_t> La valeur convertie si possible, sinon un tableau vide avec message d'erreur.
      */
     std::vector<uint8_t> toByteArray() const {
-        return typeNameStr == typeid(std::vector<uint8_t>).name()
-                   ? get<std::vector<uint8_t>>()
-                   : (std::cerr << "Error: Not a byte array. Current type: " << typeNameStr << std::endl, std::vector<uint8_t>());
+        if (typeNameStr == typeid(std::vector<uint8_t>).name()) {
+            return get<std::vector<uint8_t>>();
+        } else if (canConvert<std::vector<uint8_t>>()) {
+            SwAny converted = convert<std::vector<uint8_t>>();
+            return converted.get<std::vector<uint8_t>>();
+        } else {
+            std::cerr << "Error: Not convertible to byte array. Current type: " << typeNameStr << std::endl;
+            return std::vector<uint8_t>();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un SwFont.
      *
-     * @return SwFont La valeur convertie si le type est SwFont, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas SwFont mais peut être converti en SwFont,
+     * la conversion est tentée.
+     *
+     * @return SwFont La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     SwFont toSwFont() const {
-        return typeNameStr == typeid(SwFont).name()
-                   ? get<SwFont>()
-                   : (std::cerr << "Error: Not a SwFont. Current type: " << typeNameStr << std::endl, SwFont());
+        if (typeNameStr == typeid(SwFont).name()) {
+            return get<SwFont>();
+        } else if (canConvert<SwFont>()) {
+            SwAny converted = convert<SwFont>();
+            return converted.get<SwFont>();
+        } else {
+            std::cerr << "Error: Not convertible to SwFont. Current type: " << typeNameStr << std::endl;
+            return SwFont();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un SwString.
      *
-     * @return SwString La valeur convertie si le type est SwString, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas SwString mais peut être converti en SwString,
+     * la conversion est tentée.
+     *
+     * @return SwString La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     SwString toString() const {
-        return typeNameStr == typeid(SwString).name()
-                   ? get<SwString>()
-                   : (std::cerr << "Error: Not a SwString. Current type: " << typeNameStr << std::endl, SwString());
+        if (typeNameStr == typeid(SwString).name()) {
+            return get<SwString>();
+        } else if (canConvert<SwString>()) {
+            SwAny converted = convert<SwString>();
+            return converted.get<SwString>();
+        } else {
+            std::cerr << "Error: Not convertible to SwString. Current type: " << typeNameStr << std::endl;
+            return SwString();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un SwJsonValue.
      *
-     * @return SwJsonValue La valeur convertie si le type est SwJsonValue, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas SwJsonValue mais peut être converti en SwJsonValue,
+     * la conversion est tentée.
+     *
+     * @return SwJsonValue La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     SwJsonValue toJsonValue() const {
-        return typeNameStr == typeid(SwJsonValue).name()
-                   ? get<SwJsonValue>()
-                   : (std::cerr << "Error: Not a SwJsonValue. Current type: " << typeNameStr << std::endl, SwJsonValue());
+        if (typeNameStr == typeid(SwJsonValue).name()) {
+            return get<SwJsonValue>();
+        } else if (canConvert<SwJsonValue>()) {
+            SwAny converted = convert<SwJsonValue>();
+            return converted.get<SwJsonValue>();
+        } else {
+            std::cerr << "Error: Not convertible to SwJsonValue. Current type: " << typeNameStr << std::endl;
+            return SwJsonValue();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un SwJsonObject.
      *
-     * @return SwJsonObject La valeur convertie si le type est SwJsonObject, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas SwJsonObject mais peut être converti en SwJsonObject,
+     * la conversion est tentée.
+     *
+     * @return SwJsonObject La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     SwJsonObject toJsonObject() const {
-        return typeNameStr == typeid(SwJsonObject).name()
-                   ? get<SwJsonObject>()
-                   : (std::cerr << "Error: Not a SwJsonObject. Current type: " << typeNameStr << std::endl, SwJsonObject());
+        if (typeNameStr == typeid(SwJsonObject).name()) {
+            return get<SwJsonObject>();
+        } else if (canConvert<SwJsonObject>()) {
+            SwAny converted = convert<SwJsonObject>();
+            return converted.get<SwJsonObject>();
+        } else {
+            std::cerr << "Error: Not convertible to SwJsonObject. Current type: " << typeNameStr << std::endl;
+            return SwJsonObject();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un SwJsonArray.
      *
-     * @return SwJsonArray La valeur convertie si le type est SwJsonArray, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas SwJsonArray mais peut être converti en SwJsonArray,
+     * la conversion est tentée.
+     *
+     * @return SwJsonArray La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     SwJsonArray toJsonArray() const {
-        return typeNameStr == typeid(SwJsonArray).name()
-                   ? get<SwJsonArray>()
-                   : (std::cerr << "Error: Not a SwJsonArray. Current type: " << typeNameStr << std::endl, SwJsonArray());
+        if (typeNameStr == typeid(SwJsonArray).name()) {
+            return get<SwJsonArray>();
+        } else if (canConvert<SwJsonArray>()) {
+            SwAny converted = convert<SwJsonArray>();
+            return converted.get<SwJsonArray>();
+        } else {
+            std::cerr << "Error: Not convertible to SwJsonArray. Current type: " << typeNameStr << std::endl;
+            return SwJsonArray();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un DrawTextFormats.
      *
-     * @return DrawTextFormats La valeur convertie si le type est DrawTextFormats, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas DrawTextFormats mais peut être converti en DrawTextFormats,
+     * la conversion est tentée.
+     *
+     * @return DrawTextFormats La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     DrawTextFormats toDrawTextFormats() const {
-        return typeNameStr == typeid(DrawTextFormats).name()
-                   ? get<DrawTextFormats>()
-                   : (std::cerr << "Error: Not a DrawTextFormats. Current type: " << typeNameStr << std::endl, DrawTextFormats());
+        if (typeNameStr == typeid(DrawTextFormats).name()) {
+            return get<DrawTextFormats>();
+        } else if (canConvert<DrawTextFormats>()) {
+            SwAny converted = convert<DrawTextFormats>();
+            return converted.get<DrawTextFormats>();
+        } else {
+            std::cerr << "Error: Not convertible to DrawTextFormats. Current type: " << typeNameStr << std::endl;
+            return DrawTextFormats();
+        }
     }
 
     /**
      * @brief Convertit la valeur stockée dans SwAny en un EchoModeEnum.
      *
-     * @return EchoModeEnum La valeur convertie si le type est EchoModeEnum, sinon retourne une instance vide avec un message d'erreur dans std::cerr.
+     * Si le type interne n'est pas EchoModeEnum mais peut être converti en EchoModeEnum,
+     * la conversion est tentée.
+     *
+     * @return EchoModeEnum La valeur convertie si possible, sinon une instance vide avec message d'erreur.
      */
     EchoModeEnum toEchoModeEnum() const {
-        return typeNameStr == typeid(EchoModeEnum).name()
-                   ? get<EchoModeEnum>()
-                   : (std::cerr << "Error: Not an EchoModeEnum. Current type: " << typeNameStr << std::endl, EchoModeEnum());
+        if (typeNameStr == typeid(EchoModeEnum).name()) {
+            return get<EchoModeEnum>();
+        } else if (canConvert<EchoModeEnum>()) {
+            SwAny converted = convert<EchoModeEnum>();
+            return converted.get<EchoModeEnum>();
+        } else {
+            std::cerr << "Error: Not convertible to EchoModeEnum. Current type: " << typeNameStr << std::endl;
+            return EchoModeEnum();
+        }
     }
+
 
 
 };

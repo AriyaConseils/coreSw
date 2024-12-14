@@ -52,36 +52,36 @@ signals: \
 protected: \
     virtual void on_##PROP_NAME##_changed(const type& value)
 
-#define CUSTOM_PROPERTY(type, PROP_NAME, defautValue) \
+#define CUSTOM_PROPERTY(__prop_type__, __prop_name__, __prop_default_value__) \
 private: \
-    type m_##PROP_NAME = defautValue; \
-public: \
-    /* Setter with change check, user-defined change method, and signal emission */ \
-    void set##PROP_NAME(const type& value) { \
-        if (m_##PROP_NAME != value) { \
-            m_##PROP_NAME = value; \
-            on_##PROP_NAME##_changed(value); \
-            emit PROP_NAME##Changed(value); \
-        } \
+    __prop_type__ m_##__prop_name__ = __prop_default_value__; \
+    public: \
+    void set##__prop_name__(const __prop_type__& value) { \
+        if (m_##__prop_name__ != value) { \
+            m_##__prop_name__ = value; \
+            on_##__prop_name__##_changed(value); \
+            emit __prop_name__##Changed(value); \
     } \
-    /* Getter for property */ \
-    type get##PROP_NAME() const { \
-        return m_##PROP_NAME; \
-    } \
-    void register_##PROP_NAME##_setter() { \
-        propertyArgumentTypeNameMap[#PROP_NAME] = typeid(type).name(); \
-        propertySetterMap[#PROP_NAME] = [this](void* value) { \
-        this->set##PROP_NAME(*static_cast<type*>(value)); \
+} \
+    __prop_type__ get##__prop_name__() const { \
+        return m_##__prop_name__; \
+} \
+    template<typename T> \
+    static bool register_##__prop_name__##_setter(T* instance) { \
+        instance->propertySetterMap[#__prop_name__] = [instance](void* value) { \
+                  instance->set##__prop_name__(*static_cast<__prop_type__*>(value)); \
+          }; \
+        instance->propertyGetterMap[#__prop_name__] = [instance]() -> void* { \
+            return static_cast<void*>(&instance->m_##__prop_name__); \
         }; \
-        propertyGetterMap[#PROP_NAME] = [this]() -> void* { \
-            return static_cast<void*>(&this->m_##PROP_NAME); \
-        }; \
-    } \
-signals: \
-    /* Signal declaration */ \
-    DECLARE_SIGNAL(PROP_NAME##Changed, const type&);\
-protected: \
-    virtual void on_##PROP_NAME##_changed(const type& value)
+        instance->propertyArgumentTypeNameMap[#__prop_name__] = typeid(__prop_type__).name(); \
+        std::cout << "Property '" << #__prop_name__ << "' added.\n"; \
+        return true; \
+} \
+    DECLARE_SIGNAL(__prop_name__##Changed, const __prop_type__&); \
+    protected: \
+    bool __##__prop_name__##__prop = register_##__prop_name__##_setter<typename std::remove_reference<decltype(*this)>::type>(this); \
+    virtual void on_##__prop_name__##_changed(const __prop_type__& value)
 
 
 
@@ -92,8 +92,7 @@ protected: \
 protected: \
     virtual void on_##PROP_NAME##_changed(const type& value) override
 
-#define REGISTER_PROPERTY(PROP_NAME) \
-    addPropertyRegistrar([this]() { register_##PROP_NAME##_setter(); });
+#define REGISTER_PROPERTY(PROP_NAME)
 
 
 
@@ -114,9 +113,38 @@ protected: \
 #define SLOT(slotName) #slotName
 //#endif
 
+// #define DECLARE_SIGNAL(signalName, ...) \
+//     template <typename... Args> \
+//     void signalName(Args&&... args) { emitSignal(#signalName, std::forward<Args>(args)...); }
+
 #define DECLARE_SIGNAL(signalName, ...) \
+template <typename... Args> \
+    void signalName(Args&&... args) { \
+        emitSignal(#signalName, std::forward<Args>(args)...); \
+} \
+    /* On définit d'abord la fonction template qui enregistre le pointeur de fonction */ \
+    template<typename T> \
+    static auto __##signalName##__addr(T* instance) { \
+        using __type_name_##signalName = typename std::remove_reference<decltype(*instance)>::type; \
+        instance->__nameToFunction__[#signalName] = toVoidPtr((void(__type_name_##signalName::*)())&__type_name_##signalName::signalName); \
+        std::cout << "Function " #signalName " found.\n"; \
+        return true; \
+} \
+    /* Maintenant qu'elle est définie, on peut l'appeler pour initialiser ___signalName___ */ \
+    bool ___##signalName##___ = __##signalName##__addr(this); \
+    /* Déclaration de la fonction invoke_##signalName */ \
     template <typename... Args> \
-    void signalName(Args&&... args) { emitSignal(#signalName, std::forward<Args>(args)...); }
+    void invoke_##signalName(Args&&... args) { \
+        auto it = __nameToFunction__.find(#signalName); \
+        if (it != __nameToFunction__.end()) { \
+            using __type_name_##signalName = typename std::remove_reference<decltype(*this)>::type; \
+            decltype(&__type_name_##signalName::signalName) f = fromVoidPtr<decltype(&__type_name_##signalName::signalName)>(it->second); \
+            (this->*f)(); \
+    } else { \
+    } \
+}
+
+
 
 #define DECLARE_SLOT(slotName, ...) \
     void slotName(__VA_ARGS__)
@@ -160,6 +188,10 @@ enum ConnectionType {
     BlockingQueuedConnection
 };
 
+
+
+
+
 template<typename T, typename... Args>
 class ISlot {
 public:
@@ -185,6 +217,26 @@ public:
 private:
     T* instance;
     void (T::* method)(Args...);
+};
+
+// Slot fonctionnel avec receiver (this) et lambda
+template <typename T, typename... Args>
+class SlotFunctionReceiver : public ISlot<T, Args...> {
+public:
+    SlotFunctionReceiver(T* receiver, std::function<void(Args...)> func)
+        : receiver_(receiver), func_(std::move(func)) {}
+
+    void invoke(T*, Args... args) override {
+        func_(args...);
+    }
+
+    T* receiveur() override {
+        return receiver_;
+    }
+
+private:
+    T* receiver_;
+    std::function<void(Args...)> func_;
 };
 
 // Slot fonctionnel (lambda, std::function)
@@ -272,9 +324,30 @@ struct slot_factory {
     }
 };
 
+template<class ReceiverType, class Func>
+struct slot_factory_with_receiver {
+    ReceiverType* receiver;
+    Func func;
+
+    slot_factory_with_receiver(ReceiverType* r, Func&& f) : receiver(r), func(std::forward<Func>(f)) {}
+
+    template<typename... A>
+    ISlot<ReceiverType, A...>* operator()() {
+        using Fn = std::function<void(A...)>;
+        Fn f(func); // Conversion en std::function
+        return new SlotFunctionReceiver<ReceiverType, A...>(receiver, std::move(f));
+    }
+};
+
 
 
 class Object {
+protected:
+    std::map<std::string, void*> __nameToFunction__;
+    std::map<SwString, std::function<void(void*)>> propertySetterMap;
+    std::map<SwString, std::function<void*()>> propertyGetterMap;
+    std::map<SwString, SwString> propertyArgumentTypeNameMap;
+
     PROPERTY(SwString, ObjectName, "")
 
 public:
@@ -289,7 +362,6 @@ public:
      */
     Object(Object* parent = nullptr) :
           m_parent(nullptr)
-        , ArePropertiesInitialised(false)
     {
         REGISTER_PROPERTY(ObjectName);
 
@@ -554,6 +626,19 @@ public:
         sender->addConnection(signalName, slot, type);
     }
 
+    template <typename SenderType, typename ReceiverType, typename Func>
+    static void connect(SenderType* sender, const SwString& signalName, ReceiverType* receiver, Func&& func, ConnectionType type = DirectConnection) {
+        using traits = function_traits<typename std::decay<Func>::type>;
+        using R = typename traits::return_type;
+        using args_tuple = typename traits::args_tuple;
+
+        static_assert(std::is_void<R>::value, "Seules les fonctions retournant void sont supportées.");
+
+        // On utilise apply_tuple pour déplier les arguments de la lambda
+        auto slot = apply_tuple(args_tuple{}, slot_factory_with_receiver<ReceiverType, Func>(receiver, std::forward<Func>(func)));
+
+        sender->addConnection(signalName, slot, type);
+    }
 
     /**
      * @brief Connects a signal to a slot using modern pointer-to-member function syntax.
@@ -683,57 +768,6 @@ public:
     }
 
     /**
-     * @brief Emits a signal to invoke all connected slots.
-     *
-     * Invokes all slots connected to the specified signal. Handles different connection types such as
-     * DirectConnection, QueuedConnection, and BlockingQueuedConnection.
-     *
-     * @tparam Args Variadic template parameters representing the types of the arguments for the signal.
-     * @param signalName The name of the signal to emit.
-     * @param args Arguments to pass to the connected slots.
-     *
-     * - DirectConnection: The slot is invoked immediately in the current thread.
-     * - QueuedConnection: The slot is added to the event queue for later execution.
-     * - BlockingQueuedConnection: The current thread is blocked until the slot is executed.
-     */
-    template<typename... Args>
-    void emitSignal(const SwString& signalName, Args... args) {
-        if (connections.size() > 0 && connections.find(signalName) != connections.end()) {
-            for (auto& connection : connections[signalName]) {
-                auto slotPtr = connection.first;
-                auto type = connection.second;
-                ISlot<void, Args...>* slot = static_cast<ISlot<void, Args...>*>(slotPtr);
-                
-                if (type == DirectConnection) {
-                    if (slot->receiveur()) {
-                        static_cast<Object*>(slot->receiveur())->setSender(this);
-                    }
-                    slot->invoke(slot->receiveur(), args...);
-                }
-                else if (type == QueuedConnection) {
-                    // Mettre en file d'attente pour un traitement ultérieur
-                    SwCoreApplication::instance()->postEvent([this, slot, args...]() {
-                        if (slot->receiveur()) {
-                            static_cast<Object*>(slot->receiveur())->setSender(this);
-                        }   
-                        slot->invoke(slot->receiveur(), args...);
-                    });
-                }
-                else if (type == BlockingQueuedConnection) {
-                    // Utiliser future pour bloquer jusqu'à ce que le slot soit exécuté
-                    auto future = std::async(std::launch::async, [this, slot, args...]() {
-                        if (slot->receiveur()) {
-                            static_cast<Object*>(slot->receiveur())->setSender(this);
-                        }                        
-                        slot->invoke(slot->receiveur(), args...);
-                    });
-                    future.wait();
-                }
-            }
-        }
-    }
-
-    /**
      * @brief Retrieves the current sender of the signal.
      *
      * Returns the pointer to the `Object` that emitted the signal. Useful in slot functions
@@ -810,17 +844,19 @@ public:
      * @note Logs a message if the property is not found or if the value type does not match the expected type.
      */
     void setProperty(const SwString& propertyName, SwAny value) {
-        if (!ArePropertiesInitialised) {
-            ArePropertiesInitialised = registerProperties();
-        }
-
         // Vérifier si la propriété existe dans la map
         if (propertySetterMap.find(propertyName) != propertySetterMap.end()) {
             // Appel du setter via SwAny
             if (propertyArgumentTypeNameMap[propertyName] == value.typeName()) {
                 propertySetterMap[propertyName](value.data());
+            } else if(value.canConvert(propertyArgumentTypeNameMap[propertyName])){
+                std::cout << "from converted value\n";
+                propertySetterMap[propertyName](value.convert(propertyArgumentTypeNameMap[propertyName]).data());
             } else {
-                std::cout << "Oula jeune fou, la propriété que tu souhaite mettre ne matche pas avec le type: " << propertyArgumentTypeNameMap[propertyName] << std::endl;
+                std::cout << "Whoa, hold on! The property you're trying to set doesn't match the expected type: "
+                          << propertyArgumentTypeNameMap[propertyName]
+                          << ". Received: " << value.typeName()
+                          << ". You need to explicitly cast your value to the correct type." << std::endl;
             }
         }
         else {
@@ -843,12 +879,6 @@ public:
      */
     SwAny property(const SwString& propertyName) {
         SwAny retValue;
-
-        // Initialiser les propriétés si nécessaire
-        if (!ArePropertiesInitialised) {
-            ArePropertiesInitialised = registerProperties();
-        }
-
         // Vérifier si la propriété existe dans la map
         auto it = propertyGetterMap.find(propertyName);
         if (it != propertyGetterMap.end()) {
@@ -876,10 +906,6 @@ public:
      * @return bool `true` if the property exists, otherwise `false`.
      */
     bool propertyExist(const SwString& propertyName) {
-        if (!ArePropertiesInitialised) {
-            ArePropertiesInitialised = registerProperties();
-        }
-
         auto it = propertyGetterMap.find(propertyName);
         return (it != propertyGetterMap.end());
     }
@@ -896,32 +922,6 @@ protected:
      */
     virtual void newParentEvent(Object* parent) { SW_UNUSED(parent) }
 
-    /**
-     * @brief Adds a property registrar function.
-     *
-     * This function registers a callback that initializes a property.
-     * It is typically used during the registration process of dynamic properties.
-     *
-     * @param func A function that initializes a specific property.
-     */
-    void addPropertyRegistrar(const std::function<void()>& func) {
-        propertyRegistrars.push_back(func);
-    }
-
-    /**
-     * @brief Registers all properties using the registered property registrar functions.
-     *
-     * This function iterates over all the registered property registrar functions
-     * and executes each one to initialize the properties.
-     *
-     * @return true Always returns true after successfully executing all property initializations.
-     */
-    bool registerProperties() {
-        for (const auto& func : propertyRegistrars) {
-            func();
-        }
-        return true;
-    }
 
     /**
      * @brief Attempts to extract the name of a signal from a pointer-to-member function.
@@ -945,14 +945,77 @@ protected:
         std::string fullName = typeid(signal).name();
         // Nettoyer ou adapter si nécessaire (selon vos conventions)
         return SwString(fullName.c_str());
+    }  
+
+protected:
+    /**
+     * @brief Emits a signal to invoke all connected slots.
+     *
+     * Invokes all slots connected to the specified signal. Handles different connection types such as
+     * DirectConnection, QueuedConnection, and BlockingQueuedConnection.
+     *
+     * @tparam Args Variadic template parameters representing the types of the arguments for the signal.
+     * @param signalName The name of the signal to emit.
+     * @param args Arguments to pass to the connected slots.
+     *
+     * - DirectConnection: The slot is invoked immediately in the current thread.
+     * - QueuedConnection: The slot is added to the event queue for later execution.
+     * - BlockingQueuedConnection: The current thread is blocked until the slot is executed.
+     */
+    template<typename... Args>
+    void emitSignal(const SwString& signalName, Args... args) {
+        if (connections.size() > 0 && connections.find(signalName) != connections.end()) {
+            for (auto& connection : connections[signalName]) {
+                auto slotPtr = connection.first;
+                auto type = connection.second;
+                ISlot<void, Args...>* slot = static_cast<ISlot<void, Args...>*>(slotPtr);
+
+                if (type == DirectConnection) {
+                    if (slot->receiveur()) {
+                        static_cast<Object*>(slot->receiveur())->setSender(this);
+                    }
+                    slot->invoke(slot->receiveur(), args...);
+                }
+                else if (type == QueuedConnection) {
+                    // Mettre en file d'attente pour un traitement ultérieur
+                    SwCoreApplication::instance()->postEvent([this, slot, args...]() {
+                        if (slot->receiveur()) {
+                            static_cast<Object*>(slot->receiveur())->setSender(this);
+                        }
+                        slot->invoke(slot->receiveur(), args...);
+                    });
+                }
+                else if (type == BlockingQueuedConnection) {
+                    // Utiliser future pour bloquer jusqu'à ce que le slot soit exécuté
+                    auto future = std::async(std::launch::async, [this, slot, args...]() {
+                        if (slot->receiveur()) {
+                            static_cast<Object*>(slot->receiveur())->setSender(this);
+                        }
+                        slot->invoke(slot->receiveur(), args...);
+                    });
+                    future.wait();
+                }
+            }
+        }
     }
 
+    // Conversion générique pointeur de fonction membre -> void*
+    template<typename T>
+    static void* toVoidPtr(T func) {
+        // static_assert(sizeof(T) == sizeof(void*), "Pointeur de fonction membre et void* tailles différentes.");
+        void* ptr = nullptr;
+        std::memcpy(&ptr, &func, sizeof(ptr));
+        return ptr;
+    }
 
-
-    std::map<SwString, std::function<void(void*)>> propertySetterMap;
-    std::map<SwString, std::function<void*()>> propertyGetterMap;
-    std::map<SwString, SwString> propertyArgumentTypeNameMap;
-    std::vector<std::function<void()>> propertyRegistrars;
+    // Conversion inverse void* -> pointeur de fonction membre
+    template<typename T>
+    static T fromVoidPtr(void* ptr) {
+        static_assert(sizeof(T) == sizeof(void*), "Pointeur de fonction membre et void* tailles différentes.");
+        T func;
+        std::memcpy(&func, &ptr, sizeof(func));
+        return func;
+    }
 
 signals:
     DECLARE_SIGNAL(childRemoved)
@@ -961,11 +1024,12 @@ signals:
 private:
     Object* m_parent = nullptr;
     std::vector<Object*> children;
-    bool ArePropertiesInitialised;
     SwString objectName;
     std::map<SwString, SwString> properties;
     std::map<SwString, std::vector<std::pair<void*, ConnectionType>>> connections;
     Object* currentSender = nullptr;
+
+
 };
 
 
