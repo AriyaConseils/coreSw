@@ -1,4 +1,24 @@
 #pragma once
+/***************************************************************************************************
+ * This file is part of a project developed by Ariya Consulting and Eymeric O'Neill.
+ *
+ * Copyright (C) [year] Ariya Consulting
+ * Author/Creator: Eymeric O'Neill
+ * Contact: +33 6 52 83 83 31
+ * Email: eymeric.oneill@gmail.com
+ *
+ * This program is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ *
+ ***************************************************************************************************/
 
 #include "SwCoreApplication.h"
 
@@ -8,7 +28,9 @@
 #include <functional>
 #include <future>
 #include "SwAny.h"
-
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
 
 
@@ -75,7 +97,6 @@ private: \
             return static_cast<void*>(&instance->m_##__prop_name__); \
         }; \
         instance->propertyArgumentTypeNameMap[#__prop_name__] = typeid(__prop_type__).name(); \
-        std::cout << "Property '" << #__prop_name__ << "' added.\n"; \
         return true; \
 } \
     DECLARE_SIGNAL(__prop_name__##Changed, const __prop_type__&); \
@@ -127,7 +148,6 @@ template <typename... Args> \
     static auto __##signalName##__addr(T* instance) { \
         using __type_name_##signalName = typename std::remove_reference<decltype(*instance)>::type; \
         instance->__nameToFunction__[#signalName] = toVoidPtr((void(__type_name_##signalName::*)())&__type_name_##signalName::signalName); \
-        std::cout << "Function " #signalName " found.\n"; \
         return true; \
 } \
     /* Maintenant qu'elle est définie, on peut l'appeler pour initialiser ___signalName___ */ \
@@ -177,10 +197,6 @@ public:                                                                 \
 
 
 
-#include <functional>
-#include <tuple>
-#include <type_traits>
-#include <utility>
 
 enum ConnectionType {
     DirectConnection,

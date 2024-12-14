@@ -1,4 +1,24 @@
 #pragma once
+/***************************************************************************************************
+ * This file is part of a project developed by Ariya Consulting and Eymeric O'Neill.
+ *
+ * Copyright (C) [year] Ariya Consulting
+ * Author/Creator: Eymeric O'Neill
+ * Contact: +33 6 52 83 83 31
+ * Email: eymeric.oneill@gmail.com
+ *
+ * This program is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ *
+ ***************************************************************************************************/
 
 #include <iostream>
 #include <sstream>
@@ -81,21 +101,20 @@ public:
 
         if (m_socket && m_socket->state() == SwAbstractSocket::ConnectedState) {
             m_socket->write(finalMsg);
-        } else {
-            // Fallback console
-            switch(ctx.level) {
-            case SwDebugLevel::Debug:
-                std::cerr << "[DEBUG] ";
-                break;
-            case SwDebugLevel::Warning:
-                std::cerr << "[WARNING] ";
-                break;
-            case SwDebugLevel::Error:
-                std::cerr << "[ERROR] ";
-                break;
-            }
-            std::cerr << ctx.file << ":" << ctx.line << " (" << ctx.function << ") " << msg << std::endl;
         }
+        // Fallback console
+        switch(ctx.level) {
+        case SwDebugLevel::Debug:
+            std::cerr << "[DEBUG] ";
+            break;
+        case SwDebugLevel::Warning:
+            std::cerr << "[WARNING] ";
+            break;
+        case SwDebugLevel::Error:
+            std::cerr << "[ERROR] ";
+            break;
+        }
+        std::cerr << ctx.file << ":" << ctx.line << " (" << ctx.function << ") " << msg << std::endl;
     }
 
 private:

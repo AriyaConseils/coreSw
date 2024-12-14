@@ -1,4 +1,24 @@
 #pragma once
+/***************************************************************************************************
+ * This file is part of a project developed by Ariya Consulting and Eymeric O'Neill.
+ *
+ * Copyright (C) [year] Ariya Consulting
+ * Author/Creator: Eymeric O'Neill
+ * Contact: +33 6 52 83 83 31
+ * Email: eymeric.oneill@gmail.com
+ *
+ * This program is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this program.
+ * If not, see <https://www.gnu.org/licenses/>.
+ *
+ ***************************************************************************************************/
 
 #include "Object.h"
 #include "SwCoreApplication.h"
@@ -189,6 +209,19 @@ public:
         tempTimer->start();
     }
 
+    template <typename T>
+    static void singleShot(int ms, T* obj, void (T::*func)()) {
+        SwTimer* tempTimer = new SwTimer(ms);
+
+        tempTimer->setSingleShot(true);
+        tempTimer->connect(tempTimer, SIGNAL(timeout), [obj, func, tempTimer]() {
+            (obj->*func)();
+            tempTimer->stop();
+            tempTimer->deleteLater();
+        });
+
+        tempTimer->start();
+    }
 signals:
     /**
      * @brief Signal emitted when the timer interval elapses.
