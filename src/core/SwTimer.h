@@ -109,19 +109,13 @@ public:
         if (!m_running) {
             m_running = true;
             m_startTime = std::chrono::steady_clock::now();
-            // On ajoute un timer périodique
+
             m_timerId = SwCoreApplication::instance()->addTimer([this]() {
-                if (m_running) {
-                    emit timeout();
-                    // si singleShot est activé, on arrête après le premier timeout
-                    if (m_singleShot) {
-                        stop();
-                    } else {
-                        // Pour un timer récurrent, on réinitialise l'heure de départ
-                        m_startTime = std::chrono::steady_clock::now();
-                    }
-                }
-            }, static_cast<int>(m_interval));
+                emit timeout();
+                 // Pour un timer récurrent, on réinitialise l'heure de départ
+                m_startTime = std::chrono::steady_clock::now();
+            }, static_cast<int>(m_interval), m_singleShot);
+
         }
     }
 

@@ -23,6 +23,90 @@
 #include "SwTimer.h"
 #include "SwCoreApplication.h"
 #include <windows.h>
+
+
+/**
+ * @def tswhile(cond, ms)
+ * @brief Cooperative loop with a sleep delay.
+ *
+ * This macro defines a non-blocking cooperative loop that continuously evaluates the condition `cond`.
+ * Between iterations, the loop yields control to other tasks by sleeping for the specified `ms` milliseconds.
+ *
+ * @param cond The condition to evaluate in each iteration. The loop continues while this evaluates to `true`.
+ * @param ms The delay in milliseconds between iterations.
+ *
+ * ### Example:
+ * ```cpp
+ * tswhile(taskIsRunning, 500) {
+ *     std::cout << "Task still running..." << std::endl;
+ * }
+ * ```
+ *
+ * @note This macro ensures that other tasks or fibers can execute during the delay period,
+ *       enabling cooperative multitasking.
+ */
+#define tswhile(cond, ms) for(bool _tkeepGoing_ = (cond); _tkeepGoing_; _tkeepGoing_ = (cond), SwEventLoop::swsleep(ms))
+
+/**
+ * @def swhile(cond)
+ * @brief Cooperative loop without a fixed delay.
+ *
+ * This macro defines a non-blocking cooperative loop that continuously evaluates the condition `cond`.
+ * Between iterations, the loop yields control to other tasks by invoking `SwCoreApplication::instance()->release()`.
+ *
+ * @param cond The condition to evaluate in each iteration. The loop continues while this evaluates to `true`.
+ *
+ * ### Example:
+ * ```cpp
+ * swhile(!taskCompleted) {
+ *     std::cout << "Processing task..." << std::endl;
+ * }
+ * ```
+ *
+ * @note This macro allows other tasks or fibers to execute between iterations, making it ideal for non-blocking operations.
+ */
+#define swhile(cond) for(bool _keepGoing_ = (cond); _keepGoing_; _keepGoing_ = (cond), SwCoreApplication::instance()->release())
+
+/**
+ * @def swLocalLoop()
+ * @brief Infinite cooperative loop without a fixed delay.
+ *
+ * This macro defines a non-blocking infinite loop that continuously yields control to other tasks
+ * by invoking `SwCoreApplication::instance()->release()`.
+ *
+ * ### Example:
+ * ```cpp
+ * swLocalLoop() {
+ *     std::cout << "Running indefinitely..." << std::endl;
+ * }
+ * ```
+ *
+ * @note This macro is useful for creating runtime functions or background processes that run indefinitely
+ *       while allowing other tasks to execute.
+ */
+#define swLocalLoop() swhile(true)
+
+/**
+ * @def swLocalSlowLoop(ms)
+ * @brief Infinite cooperative loop with a fixed delay.
+ *
+ * This macro defines a non-blocking infinite loop that continuously yields control to other tasks
+ * with a specified delay of `ms` milliseconds between iterations.
+ *
+ * @param ms The delay in milliseconds between iterations.
+ *
+ * ### Example:
+ * ```cpp
+ * swLocalSlowLoop(1000) {
+ *     std::cout << "Task running every second..." << std::endl;
+ * }
+ * ```
+ *
+ * @note This macro is ideal for periodic tasks or background operations that require a fixed interval between executions.
+ */
+#define swLocalSlowLoop(ms) tswhile(true, ms)
+
+
 /**
  * @class SwEventLoop
  * @brief A local event loop mechanism built on top of the SwCoreApplication fiber system.
@@ -121,6 +205,69 @@ public:
     }
 
     /**
+     * @brief Blocks execution for a specified duration in milliseconds.
+     *
+     * This method provides a mechanism to pause execution for a given duration, while maintaining the
+     * fiber-based architecture of the event loop. Depending on the context in which it is called,
+     * it behaves as follows:
+     *
+     * - **If called from the main fiber** (before the event loop starts):
+     *   - A blocking sleep is used via `std::this_thread::sleep_for`. This is a simple, synchronous
+     *     blocking mechanism.
+     * - **If called from a secondary fiber** (after the event loop has started):
+     *   - A non-blocking mechanism is used:
+     *     1. A one-shot timer (`SwTimer::singleShot`) is created, which schedules a callback to wake
+     *        the current fiber after the specified duration.
+     *     2. The current fiber is "yielded" (paused) using `SwCoreApplication::yieldFiber`.
+     *     3. When the timer's callback triggers, the fiber is "un-yielded" using `SwCoreApplication::unYieldFiber`,
+     *        allowing the fiber to resume execution.
+     *
+     * This approach ensures that other fibers and tasks can continue to execute during the pause,
+     * maintaining responsiveness of the application.
+     *
+     * @param milliseconds Duration of the sleep in milliseconds.
+     *
+     * ### Workflow:
+     * 1. Determine whether the current context is the main fiber or a secondary fiber.
+     * 2. If it is the main fiber:
+     *    - Use a blocking sleep (`std::this_thread::sleep_for`).
+     * 3. If it is a secondary fiber:
+     *    - Assign a unique identifier (`myId`) to the fiber.
+     *    - Set up a one-shot timer that schedules a callback to un-yield the fiber after the specified duration.
+     *    - Yield the current fiber, pausing its execution.
+     *    - The fiber resumes when the timer's callback calls `SwCoreApplication::unYieldFiber`.
+     *
+     * ### Example:
+     * ```cpp
+     * SwEventLoop::swsleep(500); // Pauses execution for 500 milliseconds
+     * ```
+     *
+     * @note This method integrates seamlessly with the fiber-based event loop system,
+     *       enabling non-blocking delays.
+     */
+    static void swsleep(int milliseconds) {
+        SwCoreApplication* app = SwCoreApplication::instance(false);
+        LPVOID current = GetCurrentFiber();
+
+        if (current == app->mainFiber) {
+            // If the event loop hasn't started yet (in the main fiber), use a blocking sleep
+            std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+        } else {
+            // If inside a secondary fiber, use non-blocking mechanism
+            static int s_idCounter = 0;
+            int myId = s_idCounter++;
+
+            // Schedule a one-shot timer to wake up the fiber after the specified duration
+            SwTimer::singleShot(milliseconds, [myId]() {
+                SwCoreApplication::unYieldFiber(myId);
+            });
+
+            // Yield the current fiber, pausing its execution
+            SwCoreApplication::yieldFiber(myId);
+        }
+    }
+
+    /**
      * @brief Stops the event loop without an exit code.
      *
      * Calling `quit()` will cause `exec()` to return 0. If the event loop is not currently running,
@@ -131,6 +278,96 @@ public:
             running_ = false;
             SwCoreApplication::instance()->unYieldFiber(id_);
         }
+    }
+
+    /**
+     * @brief Installs a runtime function that runs continuously in a local event loop.
+     *
+     * This method schedules a provided function (`fn`) to run repeatedly within a local fiber-based
+     * event loop (`swLocalLoop`). The runtime function is executed continuously without a fixed delay,
+     * allowing tasks to be processed as quickly as possible while still yielding control to the main
+     * application loop for cooperative multitasking.
+     *
+     * ### Workflow:
+     * 1. A one-shot timer (`SwTimer::singleShot`) is triggered with a delay of `0`. This ensures that:
+     *    - The runtime function starts immediately.
+     *    - A new dedicated fiber is created for the runtime function, preventing the current fiber
+     *      (calling this method) from being blocked.
+     * 2. Inside the timer's callback:
+     *    - The `swLocalLoop` macro is used to continuously call the provided function (`fn`) in an
+     *      infinite loop.
+     *    - Execution yields periodically to avoid blocking the application and to allow other tasks
+     *      or events to execute.
+     * 3. The runtime function continues until explicitly stopped or interrupted by other control
+     *    mechanisms in the application.
+     *
+     * ### Example Usage:
+     * ```cpp
+     * SwEventLoop::installRuntime([]() {
+     *     std::cout << "Executing continuous runtime task..." << std::endl;
+     * });
+     * ```
+     *
+     * @param fn The function to execute continuously within the local event loop.
+     *
+     * @note By triggering a one-shot timer, this method ensures that a dedicated fiber is created
+     *       for the runtime function. This design prevents the current fiber from being blocked and
+     *       allows the runtime task to operate independently.
+     *
+     * @warning The infinite nature of `swLocalLoop` means the function will run indefinitely unless
+     *          explicitly stopped or interrupted. Ensure appropriate safeguards or stopping
+     *          mechanisms are in place if needed.
+     */
+    static void installRuntime(std::function<void()> fn) {
+        SwTimer::singleShot(0, [fn]() {
+            swLocalLoop() { // Continuous execution without a fixed delay
+                fn();
+            }
+        });
+    }
+
+    /**
+     * @brief Installs a runtime function that executes periodically with a custom delay.
+     *
+     * This method schedules a provided function (`fn`) to run repeatedly within a local fiber-based
+     * event loop (`swLocalSlowLoop`) with a specified interval (`msWait`) between executions. The
+     * runtime function operates in its own dedicated fiber, ensuring the calling fiber remains unblocked.
+     *
+     * ### Workflow:
+     * 1. A one-shot timer (`SwTimer::singleShot`) is triggered with a delay of `0`. This:
+     *    - Starts the runtime function immediately.
+     *    - Creates a new dedicated fiber for the runtime task, ensuring that the calling fiber is
+     *      not blocked.
+     * 2. Inside the timer's callback:
+     *    - The `swLocalSlowLoop` macro is used to execute the provided function (`fn`) repeatedly
+     *      with a delay of `msWait` milliseconds between iterations.
+     *    - Execution yields control back to the main event loop during each delay, allowing other
+     *      tasks or fibers to execute.
+     * 3. The runtime function continues until explicitly stopped or interrupted by other mechanisms.
+     *
+     * ### Example Usage:
+     * ```cpp
+     * SwEventLoop::installSlowRuntime(500, []() {
+     *     std::cout << "Executing periodic runtime task every 500ms..." << std::endl;
+     * });
+     * ```
+     *
+     * @param msWait The interval in milliseconds between executions of the runtime function.
+     * @param fn The function to execute periodically within the local slow loop.
+     *
+     * @note By triggering a one-shot timer, this method ensures that the runtime function operates
+     *       in its own fiber, preventing the current fiber from being blocked. The use of `swLocalSlowLoop`
+     *       ensures that control is yielded to the main event loop during the delay periods.
+     *
+     * @warning The runtime function (`fn`) will continue running indefinitely unless explicitly
+     *          stopped or interrupted. Ensure appropriate stopping mechanisms or safeguards are in place.
+     */
+    static void installSlowRuntime(int msWait, std::function<void()> fn) {
+        SwTimer::singleShot(0, [fn, msWait]() {
+            swLocalSlowLoop(msWait) { // Execute repeatedly with msWait milliseconds delay
+                fn();
+            }
+        });
     }
 
     /**
@@ -160,3 +397,5 @@ private:
     int id_;        ///< Unique identifier for this event loop instance.
     int exitCode;   ///< Exit code returned by `exec()`.
 };
+
+
