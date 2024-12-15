@@ -7,18 +7,14 @@
 #include "SwTimer.h"
 #include "SwEventLoop.h"
 #include "SwProcess.h"
-#include "MainWindow.h"
+#include "SwMainWindow.h"
 #include "LineEdit.h"
 #include "Label.h"
 #include "SwString.h"
 
-int main() {
-	bool wait = true;
-	
-	//while(wait);
-	
+int main() {	
     SwGuiApplication app;
-    MainWindow mainWindow;
+    SwMainWindow mainWindow;
     mainWindow.show();
 
     Object::connect(&mainWindow, SIGNAL(resized), [&](int width, int height) {
@@ -63,8 +59,6 @@ int main() {
          button->setCursor(CursorType::Hand);
          button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);
          button->resize(buttonWidth, buttonHeight);
-
-
 
          Object::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
              std::cout << "*********Button Clicked**********" << std::endl;

@@ -328,7 +328,11 @@ public:
      *
      * @param child Pointer to the child SwWidget to be added.
      */
-    virtual void addChild(SwWidget* child) {
+    virtual void addChild(Object* child) override {
+        Object::addChild(child);
+    }
+
+    virtual void removeChild(Object* child) override {
         Object::addChild(child);
     }
 

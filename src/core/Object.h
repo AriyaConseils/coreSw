@@ -514,7 +514,7 @@ public:
      *
      * @param child The child object to remove.
      */
-    void removeChild(Object* child) {
+    virtual void removeChild(Object* child) {
         children.erase(std::remove(children.begin(), children.end(), child), children.end());
         emit childRemoved(child);
         removedChildEvent(child);

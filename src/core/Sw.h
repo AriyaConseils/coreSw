@@ -48,7 +48,16 @@ enum class EntryType {
 };
 SW_DECLARE_FLAGS(EntryTypes, EntryType)
 
-
+enum WindowFlag {
+    NoFlag = 0x0,
+    FramelessWindowHint = 0x1,      // Fenêtre sans bordure
+    NoMinimizeButton = 0x2,         // Pas de bouton de minimisation
+    NoMaximizeButton = 0x4,         // Pas de bouton de maximisation
+    NoCloseButton = 0x8,            // Pas de bouton de fermeture (attention, c'est un peu plus tricky sur Windows)
+    ToolWindowHint = 0x10,          // Fenêtre outil (petite barre titre)
+    StayOnTopHint = 0x20            // Toujours au-dessus (topmost)
+};
+SW_DECLARE_FLAGS(WindowFlags, WindowFlag)
 
 
 enum class CursorType {
