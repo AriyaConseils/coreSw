@@ -68,11 +68,11 @@ public:
     /**
      * @brief Constructs an abstract socket object.
      *
-     * @param parent A pointer to the parent object. Defaults to `nullptr`.
+     * @param parent A pointer to the parent SwObject. Defaults to `nullptr`.
      *
      * @details Initializes the socket state to `UnconnectedState`.
      */
-    SwAbstractSocket(Object* parent = nullptr)
+    SwAbstractSocket(SwObject* parent = nullptr)
         : SwIODevice(parent), m_state(UnconnectedState)
     {
     }

@@ -1,5 +1,6 @@
 #include <SwCoreApplication.h>
 #include "SwInteractiveConsoleApplication.h"
+#include <SwEventLoop.h>
 
 int main(int argc, char *argv[]) {
     // Création de l'application principale
@@ -33,7 +34,6 @@ interactiveApp.registerCommand("settings/display/brightness", [&](const SwString
         std::cout << "New brightness : " << newVal << "\n";
     } 
 });
-
     // Enregistrer une commande pour afficher l'état du Wi-Fi
     interactiveApp.registerCommand("settings/network/wifi", [](const SwString &value) {
         const int maxDots = 7; // Nombre maximum de points
@@ -42,7 +42,7 @@ interactiveApp.registerCommand("settings/display/brightness", [&](const SwString
         for (int i = 0; i < repeatCount; ++i) {
             for (int dots = 0; dots <= maxDots; ++dots) {
                 std::cout << "\rLe Wi-Fi setup ongoing" << std::string(dots, '.') << "   " << std::flush; 
-                Sleep(200); // Pause de 200ms
+                SwEventLoop::swsleep(300);
             }
         }
 

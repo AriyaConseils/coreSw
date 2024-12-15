@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
     SwDebug::setVersion("1.2.3");
 
     // Tentative de connexion sur le host et port
-    SwDebug::instance().connectToHostAndIdentify("127.0.0.1", 12345);
+    SwDebug::connectToHostAndIdentify("127.0.0.1", 12345);
 
     swDebug() << "Ceci est un message de debug avec valeur: " << 42;
     swWarning() << "Attention, quelque chose n'est pas optimal";
@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     timer.setInterval(2000); // Intervalle de 2000 ms (2 secondes)
 
     // Connexion du signal timeout à une lambda pour afficher des messages de debug
-    Object::connect(&timer, SIGNAL(timeout), &app, [&]() {
+    SwObject::connect(&timer, SIGNAL(timeout), &app, [&]() {
         static int counter = 0;
         swDebug() << "Message périodique numéro: " << ++counter;
     });

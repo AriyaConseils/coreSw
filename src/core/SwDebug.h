@@ -26,7 +26,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include "Object.h"
+#include "SwObject.h"
 #include "SwTcpSocket.h"
 #include <windows.h> // GetCurrentProcessId()
 
@@ -51,8 +51,8 @@ struct SwDebugContext {
 
 class SwDebugMessage; // forward declaration
 
-class SwDebug : public Object {
-    SW_OBJECT(SwDebug, Object)
+class SwDebug : public SwObject {
+    SW_OBJECT(SwDebug, SwObject)
 public:
     static SwDebug& instance() {
         static SwDebug _instance;
@@ -71,14 +71,14 @@ public:
         instance().m_pid = pid;
     }
 
-    bool connectToHostAndIdentify(const SwString& host, uint16_t port) {
-        if (!m_socket) {
-            m_socket = new SwTcpSocket(&instance());
-            connect(m_socket, SIGNAL(connected), this, &SwDebug::onSocketConnected);
-            connect(m_socket, SIGNAL(errorOccurred), this, &SwDebug::onSocketError);
+    static bool connectToHostAndIdentify(const SwString& host, uint16_t port) {
+        if (!instance().m_socket) {
+            instance().m_socket = new SwTcpSocket(&instance());
+            connect(instance().m_socket, SIGNAL(connected), &instance(), &SwDebug::onSocketConnected);
+            connect(instance().m_socket, SIGNAL(errorOccurred), &instance(), &SwDebug::onSocketError);
         }
 
-        return m_socket->connectToHost(host, port);
+        return instance().m_socket->connectToHost(host, port);
     }
 
     void logMessage(const SwDebugContext& ctx, const SwString& msg) {

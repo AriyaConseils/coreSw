@@ -3,15 +3,15 @@
 #include "SwCoreApplication.h"
 #include "SwTcpServer.h"
 #include "SwTcpSocket.h"
-#include "Object.h"
+#include "SwObject.h"
 #include <iostream>
 
 // Handler qui gère la lecture des données pour une socket cliente donnée
-class MyReaderHandler : public Object {
-    SW_OBJECT(MyReaderHandler, Object)
+class MyReaderHandler : public SwObject {
+    SW_OBJECT(MyReaderHandler, SwObject)
 public:
-    MyReaderHandler(SwTcpSocket* client, Object* parent = nullptr)
-        : Object(parent),
+    MyReaderHandler(SwTcpSocket* client, SwObject* parent = nullptr)
+        : SwObject(parent),
         m_client(client)
     {
         if (m_client) {
@@ -60,11 +60,11 @@ private:
 };
 
 // Handler principal pour les nouvelles connexions
-class MyServerHandler : public Object {
-    SW_OBJECT(MyServerHandler, Object)
+class MyServerHandler : public SwObject {
+    SW_OBJECT(MyServerHandler, SwObject)
 public:
-    MyServerHandler(SwTcpServer* server, Object* parent = nullptr)
-        : Object(parent), m_server(server) {}
+    MyServerHandler(SwTcpServer* server, SwObject* parent = nullptr)
+        : SwObject(parent), m_server(server) {}
 
 public slots:
     void onNewConnection() {
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
     MyServerHandler handler(&server);
 
     // Se connecter au signal newConnection
-    Object::connect(&server, SIGNAL(newConnection), &handler, &MyServerHandler::onNewConnection);
+    SwObject::connect(&server, SIGNAL(newConnection), &handler, &MyServerHandler::onNewConnection);
 
     // Écouter sur le port 12345
     if (!server.listen(12345)) {

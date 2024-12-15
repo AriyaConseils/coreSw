@@ -161,7 +161,7 @@
  *
  * @since 1.0
  */
-class SwEventLoop : public Object {
+class SwEventLoop : public SwObject {
 public:
     /**
      * @brief Constructs a new SwEventLoop.

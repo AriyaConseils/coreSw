@@ -20,7 +20,7 @@
  *
  ***************************************************************************************************/
 
-#include "Object.h"
+#include "SwObject.h"
 #include "SwString.h"
 #include "SwTcpSocket.h"
 #include "SwTimer.h"
@@ -34,11 +34,11 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-class SwTcpServer : public Object {
-    SW_OBJECT(SwTcpServer, Object)
+class SwTcpServer : public SwObject {
+    SW_OBJECT(SwTcpServer, SwObject)
 public:
-    SwTcpServer(Object* parent = nullptr)
-        : Object(parent), m_listenSocket(INVALID_SOCKET), m_listenEvent(NULL)
+    SwTcpServer(SwObject* parent = nullptr)
+        : SwObject(parent), m_listenSocket(INVALID_SOCKET), m_listenEvent(NULL)
     {
         initializeWinsock();
         m_timer = new SwTimer(50, this);

@@ -72,7 +72,7 @@ public:
      *
      * @param parent An optional parent object for hierarchical ownership.
      */
-    SwProcess(Object* parent = nullptr)
+    SwProcess(SwObject* parent = nullptr)
         : SwIODevice(parent), processRunning(false), hProcess(NULL), hStdOutRead(NULL), hStdErrRead(NULL), hStdInWrite(NULL) {
         stdoutDescriptor = nullptr;
         stderrDescriptor = nullptr;

@@ -20,7 +20,7 @@
  *
  ***************************************************************************************************/
 
-#include "Object.h"
+#include "SwObject.h"
 
 class PaintEvent;
 class MouseEvent;
@@ -28,12 +28,12 @@ class KeyEvent;
 class PaintEvent;
 class StyleSheet;
 
-class SwWidgetInterface : public Object {
+class SwWidgetInterface : public SwObject {
 
     VIRTUAL_PROPERTY(SwFont, Font)
 public:
     // Constructeur et destructeur
-    SwWidgetInterface(Object* parent = nullptr) : Object(parent) {}
+    SwWidgetInterface(SwObject* parent = nullptr) : SwObject(parent) {}
     virtual ~SwWidgetInterface() = default;
 
     // Méthodes purement virtuelles pour définir les fonctionnalités d'un widget

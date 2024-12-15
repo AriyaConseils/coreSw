@@ -17,7 +17,7 @@ int main() {
     SwMainWindow mainWindow;
     mainWindow.show();
 
-    Object::connect(&mainWindow, SIGNAL(resized), [&](int width, int height) {
+    SwObject::connect(&mainWindow, SIGNAL(resized), [&](int width, int height) {
         std::cout << "Fenêtre -------> redimensionnée: " << width << "x" << height << std::endl;
     });
 
@@ -60,7 +60,7 @@ int main() {
          button->move(xPos + lineEditWidth + 20, yPos + labelHeight + 10);
          button->resize(buttonWidth, buttonHeight);
 
-         Object::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
+         SwObject::connect(button, SIGNAL(clicked), std::function<void()>([&]() {
              std::cout << "*********Button Clicked**********" << std::endl;
 
         }));

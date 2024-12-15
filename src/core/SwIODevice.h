@@ -21,13 +21,13 @@
  ***************************************************************************************************/
 
 #include <windows.h>
-#include "Object.h"
+#include "SwObject.h"
 #include "SwIODescriptor.h"
 #include "SwTimer.h"
 
-class SwIODevice : public Object {
+class SwIODevice : public SwObject {
 public:
-    SwIODevice(Object* parent = nullptr) : Object(parent), monitoring(false), m_timerDercriptor(new SwTimer(100, this)){
+    SwIODevice(SwObject* parent = nullptr) : SwObject(parent), monitoring(false), m_timerDercriptor(new SwTimer(100, this)){
     
         connect(m_timerDercriptor, SIGNAL(timeout), this, &SwIODevice::onTimerDescriptor);
     }

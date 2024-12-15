@@ -14,11 +14,11 @@ int main(int argc, char* argv[]) {
     nam.setRawHeader("Conefzetent-Type", "application/json");
 
 
-    Object::connect(&nam, SIGNAL(finished), [](const SwString& result) {
+    SwObject::connect(&nam, SIGNAL(finished), [](const SwString& result) {
         std::cout << "Réponse reçue:\n" << result.toStdString() << std::endl;
     });
 
-    Object::connect(&nam, SIGNAL(errorOccurred), [](int err) {
+    SwObject::connect(&nam, SIGNAL(errorOccurred), [](int err) {
         std::cerr << "Erreur réseau: " << err << std::endl;
     });
 

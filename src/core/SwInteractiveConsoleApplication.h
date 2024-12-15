@@ -66,7 +66,7 @@
  * the user input is always taken from the first line. After each command, the screen
  * is cleared and the new info is displayed below the prompt.
  */
-class SwInteractiveConsoleApplication: public Object {
+class SwInteractiveConsoleApplication: public SwObject {
 public:
 
     /**

@@ -337,7 +337,9 @@ public:
                 break;
             }
 
-            std::this_thread::sleep_for(std::chrono::microseconds(adjustedSleepDuration / 2));
+            if(adjustedSleepDuration > 1000){
+                std::this_thread::sleep_for(std::chrono::microseconds(adjustedSleepDuration / 2));
+            }
         }
         return exitCode;
     }

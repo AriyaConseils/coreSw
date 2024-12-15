@@ -68,7 +68,7 @@ public:
      * @note The socket is initialized to `INVALID_SOCKET`, and no connection is established at construction.
      * @warning Ensure that the parent object properly manages the lifecycle of this socket.
      */
-    SwTcpSocket(Object* parent = nullptr)
+    SwTcpSocket(SwObject* parent = nullptr)
         : SwAbstractSocket(parent), m_socket(INVALID_SOCKET), m_event(NULL) {
         initializeWinsock();
         startMonitoring();

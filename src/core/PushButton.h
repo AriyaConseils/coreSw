@@ -46,9 +46,6 @@ public:
         width = 150;
         height = 50;
 
-        REGISTER_PROPERTY(Text);
-        REGISTER_PROPERTY(Alignment);
-
         setText(text);
 
         SwString css = R"(

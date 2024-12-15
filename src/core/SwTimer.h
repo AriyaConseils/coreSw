@@ -20,7 +20,7 @@
  *
  ***************************************************************************************************/
 
-#include "Object.h"
+#include "SwObject.h"
 #include "SwCoreApplication.h"
 #include <chrono>
 
@@ -28,7 +28,7 @@
  * @class SwTimer
  * @brief Provides a timer implementation for periodic or single-shot execution of tasks, similar to QTimer.
  */
-class SwTimer : public Object
+class SwTimer : public SwObject
 {
 public:
 
@@ -43,13 +43,13 @@ public:
     };
 
     /**
-     * @brief Constructs a SwTimer object.
+     * @brief Constructs a SwTimer SwObject.
      *
      * @param ms The interval in milliseconds for the timer (default is 1000 ms).
-     * @param parent The parent object for the timer.
+     * @param parent The parent SwObject for the timer.
      */
-    SwTimer(int ms = 1000, Object *parent = nullptr)
-        : Object(parent)
+    SwTimer(int ms = 1000, SwObject *parent = nullptr)
+        : SwObject(parent)
         , m_interval(ms*1000) // interval stocké en microsecondes
         , m_running(false)
         , m_timerId(-1)

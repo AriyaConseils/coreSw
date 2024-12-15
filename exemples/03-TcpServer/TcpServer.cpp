@@ -7,10 +7,10 @@
 #include <iostream>
 
 // Un handler qui va réagir aux nouvelles connexions
-class MyHandler : public Object {
-    SW_OBJECT(MyHandler, Object)
+class MyHandler : public SwObject {
+    SW_OBJECT(MyHandler, SwObject)
 public:
-    MyHandler(Object* parent = nullptr) : Object(parent), m_server(nullptr) {}
+    MyHandler(SwObject* parent = nullptr) : SwObject(parent), m_server(nullptr) {}
 
     void setServer(SwTcpServer* server) {
         m_server = server;
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
     handler.setServer(&server);
 
     // Se connecter au signal newConnection
-    Object::connect(&server, SIGNAL(newConnection), &handler, &MyHandler::onNewConnection);
+    SwObject::connect(&server, SIGNAL(newConnection), &handler, &MyHandler::onNewConnection);
 
     // Écouter sur le port 12345
     if (!server.listen(12345)) {

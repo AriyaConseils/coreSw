@@ -144,15 +144,15 @@ private:
 
 
 
-// Classe SwWidget héritant de Object, simulant QWidget
+// Classe SwWidget héritant de SwObject, simulant QWidget
 class SwWidget : public SwWidgetInterface {
 
     /**
      * @brief Macro to declare the inheritance hierarchy for the SwWidget class.
      *
-     * Specifies that `SwWidget` is derived from `Object` class.
+     * Specifies that `SwWidget` is derived from `SwObject` class.
      */
-    SW_OBJECT(SwWidget, Object)
+    SW_OBJECT(SwWidget, SwObject)
 
     /**
      * @brief Property for the SwWidget's focus policy.
@@ -298,15 +298,10 @@ public:
      */
     SwWidget(SwWidget* parent = nullptr)
         : SwWidgetInterface(parent), width(100), height(100), x(0), y(0), m_style(new SwStyle()) {
-        REGISTER_PROPERTY(Font);
-        REGISTER_PROPERTY(Cursor);
-        REGISTER_PROPERTY(Enable);
-        REGISTER_PROPERTY(ToolTips);
-
 
         setCursor(CursorType::Arrow);
-        if (Object::parent()) {
-            this->newParentEvent(Object::parent());
+        if (SwObject::parent()) {
+            this->newParentEvent(SwObject::parent());
         }
     }
 
@@ -324,16 +319,16 @@ public:
     /**
      * @brief Adds a child SwWidget to the current SwWidget.
      *
-     * Links the specified SwWidget as a child of this SwWidget using the base `Object` implementation.
+     * Links the specified SwWidget as a child of this SwWidget using the base `SwObject` implementation.
      *
      * @param child Pointer to the child SwWidget to be added.
      */
-    virtual void addChild(Object* child) override {
-        Object::addChild(child);
+    virtual void addChild(SwObject* child) override {
+        SwObject::addChild(child);
     }
 
-    virtual void removeChild(Object* child) override {
-        Object::addChild(child);
+    virtual void removeChild(SwObject* child) override {
+        SwObject::addChild(child);
     }
 
     /**
@@ -504,15 +499,15 @@ protected:
      * @brief Handles the event when the SwWidget gets a new parent.
      *
      * Updates the SwWidget's window handle (`hwnd`) and visibility state based on the new parent.
-     * Calls the base `Object::newParentEvent` to ensure proper propagation.
+     * Calls the base `SwObject::newParentEvent` to ensure proper propagation.
      *
      * @param parent Pointer to the new parent object.
      */
-    virtual void newParentEvent(Object* parent) override {
+    virtual void newParentEvent(SwObject* parent) override {
         SwWidget *ui = dynamic_cast<SwWidget*>(parent);
         hwnd = ui->hwnd;
         this->setVisible(ui->getVisible());
-        Object::newParentEvent(parent);
+        SwObject::newParentEvent(parent);
     }
 
     /**

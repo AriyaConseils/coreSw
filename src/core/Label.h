@@ -43,8 +43,6 @@ public:
         : SwWidget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut
-        REGISTER_PROPERTY(Text);
-        REGISTER_PROPERTY(Alignment);
 
         // Définition d'un style CSS pour le Label
         SwString css = R"(
@@ -64,8 +62,6 @@ public:
         : SwWidget(parent) {
         width = 200;  // Largeur par défaut
         height = 30;  // Hauteur par défaut
-
-        REGISTER_PROPERTY(Text);
 
         // Définition d'un style CSS pour le Label
         SwString css = R"(

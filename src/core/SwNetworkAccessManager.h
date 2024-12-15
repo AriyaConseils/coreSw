@@ -20,7 +20,7 @@
  *
  ***************************************************************************************************/
 
-#include "Object.h"
+#include "SwObject.h"
 #include "SwTcpSocket.h"
 #include "SwString.h"
 
@@ -46,20 +46,20 @@
  *
  * @note The class operates asynchronously, leveraging signals and slots for communication.
  */
-class SwNetworkAccessManager : public Object {
-    SW_OBJECT(SwNetworkAccessManager, Object)
+class SwNetworkAccessManager : public SwObject {
+    SW_OBJECT(SwNetworkAccessManager, SwObject)
 
 public:
     /**
      * @brief Constructor for SwNetworkAccessManager.
      *
-     * Initializes the network access manager with default values and an optional parent object.
+     * Initializes the network access manager with default values and an optional parent SwObject.
      * Sets up internal state for managing HTTP requests and responses.
      *
-     * @param parent Pointer to the parent `Object`, if any. Defaults to `nullptr`.
+     * @param parent Pointer to the parent `SwObject`, if any. Defaults to `nullptr`.
      */
-    SwNetworkAccessManager(Object* parent = nullptr)
-        : Object(parent), m_socket(nullptr), m_contentLength(-1), m_bytesReceived(0), m_headersReceived(false)
+    SwNetworkAccessManager(SwObject* parent = nullptr)
+        : SwObject(parent), m_socket(nullptr), m_contentLength(-1), m_bytesReceived(0), m_headersReceived(false)
     {
     }
 

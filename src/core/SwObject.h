@@ -113,7 +113,6 @@ private: \
 protected: \
     virtual void on_##PROP_NAME##_changed(const type& value) override
 
-#define REGISTER_PROPERTY(PROP_NAME)
 
 
 
@@ -134,9 +133,10 @@ protected: \
 #define SLOT(slotName) #slotName
 //#endif
 
-// #define DECLARE_SIGNAL(signalName, ...) \
-//     template <typename... Args> \
-//     void signalName(Args&&... args) { emitSignal(#signalName, std::forward<Args>(args)...); }
+//#ifndef emit
+#define emit
+//#endif
+
 
 #define DECLARE_SIGNAL(signalName, ...) \
 template <typename... Args> \
@@ -160,16 +160,11 @@ template <typename... Args> \
             using __type_name_##signalName = typename std::remove_reference<decltype(*this)>::type; \
             decltype(&__type_name_##signalName::signalName) f = fromVoidPtr<decltype(&__type_name_##signalName::signalName)>(it->second); \
             (this->*f)(); \
-    } else { \
-    } \
+    }\
 }
 
 
 
-#define DECLARE_SLOT(slotName, ...) \
-    void slotName(__VA_ARGS__)
-
-#define emit 
 
 
 
@@ -196,15 +191,11 @@ public:                                                                 \
 
 
 
-
-
 enum ConnectionType {
     DirectConnection,
     QueuedConnection,
     BlockingQueuedConnection
 };
-
-
 
 
 
@@ -357,7 +348,7 @@ struct slot_factory_with_receiver {
 
 
 
-class Object {
+class SwObject {
 protected:
     std::map<std::string, void*> __nameToFunction__;
     std::map<SwString, std::function<void(void*)>> propertySetterMap;
@@ -369,30 +360,27 @@ protected:
 public:
 
     /**
-     * @brief Constructor that initializes the Object with an optional parent.
+     * @brief Constructor that initializes the SwObject with an optional parent.
      *
-     * Registers the `ObjectName` property and sets the parent of the current object,
-     * establishing its position in the object hierarchy.
+     * Registers the `ObjectName` property and sets the parent of the current SwObject,
+     * establishing its position in the SwObject hierarchy.
      *
      * @param parent Pointer to the parent Object. Defaults to nullptr if no parent is specified.
      */
-    Object(Object* parent = nullptr) :
+    SwObject(SwObject* parent = nullptr) :
           m_parent(nullptr)
     {
-        REGISTER_PROPERTY(ObjectName);
-
-        // Enregistrement dans la map
         setParent(parent);
     }
 
     /**
-     * @brief Virtual destructor for the Object class.
+     * @brief Virtual destructor for the SwObject class.
      *
      * Currently, this destructor does not perform any specific cleanup tasks.
      * It is designed to allow proper cleanup in derived classes, including disconnecting slots
      * and deleting child objects if necessary (commented out here for customization).
      */
-    virtual ~Object() {
+    virtual ~SwObject() {
         //emit destroyed();
         //for (auto child : children) {
         //    if (child->m_parent == this) {
@@ -403,12 +391,12 @@ public:
     }
 
     /**
-     * @brief Checks if the given object is derived from a specified base class.
+     * @brief Checks if the given SwObject is derived from a specified base class.
      *
      * @tparam Base The base class to check against.
-     * @tparam Derived The derived class type of the object.
-     * @param obj Pointer to the object to check.
-     * @return true if the object is of type Base or derived from it, false otherwise.
+     * @tparam Derived The derived class type of the SwObject.
+     * @param obj Pointer to the SwObject to check.
+     * @return true if the SwObject is of type Base or derived from it, false otherwise.
      */
     template <typename Base, typename Derived>
     bool inherits(const Derived* obj) {
@@ -416,7 +404,7 @@ public:
     }
 
     virtual SwString className() const {
-        SwString fullName = typeid(Object).name();
+        SwString fullName = typeid(SwObject).name();
         int spaceIndex = fullName.indexOf(' ');
         if (spaceIndex != -1) {
             return fullName.mid(spaceIndex + 1);
@@ -426,27 +414,27 @@ public:
 
 
     /**
-     * @brief Retrieves the class name of the object.
+     * @brief Retrieves the class name of the SwObject.
      *
      * This method uses `typeid` to get the full type name and extracts the class name.
      *
      * @return SwString The name of the class.
      */
     virtual std::vector<SwString> classHierarchy() const {
-        return { Object::className() };
+        return { SwObject::className() };
     }
 
     /**
-     * @brief Marks the object for deletion in the next event loop iteration.
+     * @brief Marks the SwObject for deletion in the next event loop iteration.
      *
-     * This method schedules the deletion of the object using `SwCoreApplication::postEvent`.
-     * The actual deletion occurs asynchronously, ensuring that the object is safely
+     * This method schedules the deletion of the SwObject using `SwCoreApplication::postEvent`.
+     * The actual deletion occurs asynchronously, ensuring that the SwObject is safely
      * removed without disrupting the current execution flow.
      */
     void deleteLater() {
-        Object* meAsAShitToClean = this;
-        SwCoreApplication::instance()->postEvent([meAsAShitToClean]() {
-            delete meAsAShitToClean;
+        SwObject* meAsDurtyToClean = this;
+        SwCoreApplication::instance()->postEvent([meAsDurtyToClean]() {
+            delete meAsDurtyToClean;
         });
     }
 
@@ -465,15 +453,15 @@ public:
     }
 
     /**
-     * @brief Sets a new parent for the object and updates the parent-child relationship.
+     * @brief Sets a new parent for the SwObject and updates the parent-child relationship.
      *
-     * If the object already has a parent, it removes itself from the previous parent's children list.
+     * If the SwObject already has a parent, it removes itself from the previous parent's children list.
      * It then adds itself to the new parent's children list and triggers the `newParentEvent` to handle
      * any custom behavior related to the parent change.
      *
-     * @param parent The new parent object. Can be nullptr to detach the object from its current parent.
+     * @param parent The new parent SwObject. Can be nullptr to detach the SwObject from its current parent.
      */
-    void setParent(Object *parent) 
+    void setParent(SwObject *parent)
     {
         if (m_parent) {
             m_parent->removeChild(this);
@@ -486,35 +474,35 @@ public:
     }
 
     /**
-     * @brief Retrieves the parent of the current object.
+     * @brief Retrieves the parent of the current SwObject.
      *
-     * @return A pointer to the parent object, or nullptr if the object has no parent.
+     * @return A pointer to the parent SwObject, or nullptr if the SwObject has no parent.
      */
-    Object *parent() { return m_parent; }
+    SwObject *parent() { return m_parent; }
 
     /**
-     * @brief Adds a child object to the current object.
+     * @brief Adds a child SwObject to the current SwObject.
      *
      * This method appends the specified child to the list of children, emits a `childAdded` signal,
      * and triggers the `addChildEvent` to allow derived classes to handle additional logic.
      *
-     * @param child The child object to add.
+     * @param child The child SwObject to add.
      */
-    virtual void addChild(Object* child) {
+    virtual void addChild(SwObject* child) {
         children.push_back(child);
         emit childAdded(child);
         addChildEvent(child);
     }
 
     /**
-     * @brief Removes a child object from the current object's children list.
+     * @brief Removes a child SwObject from the current SwObject's children list.
      *
      * This method removes the specified child from the list of children, emits a `childRemoved` signal,
      * and triggers the `removedChildEvent` to allow derived classes to handle additional logic.
      *
-     * @param child The child object to remove.
+     * @param child The child SwObject to remove.
      */
-    virtual void removeChild(Object* child) {
+    virtual void removeChild(SwObject* child) {
         children.erase(std::remove(children.begin(), children.end(), child), children.end());
         emit childRemoved(child);
         removedChildEvent(child);
@@ -523,8 +511,8 @@ public:
     /**
      * @brief Finds all child objects of a specific type, including nested children.
      *
-     * This method searches for children of the current object that are of the specified type `T`.
-     * The search is recursive, meaning it also checks the children of each child object.
+     * This method searches for children of the current SwObject that are of the specified type `T`.
+     * The search is recursive, meaning it also checks the children of each child SwObject.
      *
      * @tparam T The type of objects to find.
      * @return A vector of pointers to all child objects of type `T`.
@@ -539,7 +527,7 @@ public:
             }
 
             // Si l'enfant est un Object, on effectue la recherche récursive
-            if (auto objectChild = dynamic_cast<Object*>(child)) {
+            if (auto objectChild = dynamic_cast<SwObject*>(child)) {
                 // Recherche récursive dans les enfants de l'enfant
                 std::vector<T*> nestedResults = objectChild->findChildren<T>();
                 result.insert(result.end(), nestedResults.begin(), nestedResults.end());
@@ -549,46 +537,46 @@ public:
     }
 
     /**
-     * @brief Retrieves all direct child objects of the current object.
+     * @brief Retrieves all direct child objects of the current SwObject.
      *
      * This method returns a constant reference to the vector containing the direct children
-     * of the current object. The vector does not include nested children.
+     * of the current SwObject. The vector does not include nested children.
      *
      * @return A constant reference to the vector of child objects.
      */
-    const std::vector<Object*>& getChildren() const {
+    const std::vector<SwObject*>& getChildren() const {
         return children;
     }
 
     /**
-     * @brief Handles the event triggered when a child object is added.
+     * @brief Handles the event triggered when a child SwObject is added.
      *
-     * This virtual method is called whenever a child object is added to the current object.
+     * This virtual method is called whenever a child SwObject is added to the current SwObject.
      * It can be overridden in derived classes to perform specific actions when a child is added.
      *
-     * @param child Pointer to the object that was added as a child.
+     * @param child Pointer to the SwObject that was added as a child.
      */
-    virtual void addChildEvent(Object* child) { SW_UNUSED(child) }
+    virtual void addChildEvent(SwObject* child) { SW_UNUSED(child) }
 
     /**
-     * @brief Handles the event triggered when a child object is removed.
+     * @brief Handles the event triggered when a child SwObject is removed.
      *
-     * This virtual method is called whenever a child object is removed from the current object.
+     * This virtual method is called whenever a child SwObject is removed from the current SwObject.
      * It can be overridden in derived classes to perform specific actions when a child is removed.
      *
-     * @param child Pointer to the object that was removed as a child.
+     * @param child Pointer to the SwObject that was removed as a child.
      */
-    virtual void removedChildEvent(Object* child) { SW_UNUSED(child)  }
+    virtual void removedChildEvent(SwObject* child) { SW_UNUSED(child)  }
 
     /**
-     * @brief Connects a signal from a sender object to a slot in a receiver object.
+     * @brief Connects a signal from a sender SwObject to a slot in a receiver SwObject.
      *
      * Establishes a connection between a signal emitted by the sender and a member function
      * (slot) of the receiver. The connection type determines how the signal is handled.
      *
-     * @param sender Pointer to the sender object emitting the signal.
+     * @param sender Pointer to the sender SwObject emitting the signal.
      * @param signalName Name of the signal to connect.
-     * @param receiver Pointer to the receiver object receiving the signal.
+     * @param receiver Pointer to the receiver SwObject receiving the signal.
      * @param slot Pointer to the receiver's member function (slot).
      * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection). Default is DirectConnection.
      */
@@ -599,12 +587,12 @@ public:
     }
 
     /**
-     * @brief Connects a signal from a sender object to a standalone function or lambda.
+     * @brief Connects a signal from a sender SwObject to a standalone function or lambda.
      *
      * Establishes a connection between a signal emitted by the sender and a function or lambda.
      * The connection type determines how the signal is handled.
      *
-     * @param sender Pointer to the sender object emitting the signal.
+     * @param sender Pointer to the sender SwObject emitting the signal.
      * @param signalName Name of the signal to connect.
      * @param func The function or lambda to be executed when the signal is emitted.
      * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection). Default is DirectConnection.
@@ -620,9 +608,9 @@ public:
      *
      * Establishes a connection between a signal emitted by the sender and a lambda function.
      *
-     * @tparam Sender The type of the sender object emitting the signal.
+     * @tparam Sender The type of the sender SwObject emitting the signal.
      * @tparam Func The type of the lambda function to connect.
-     * @param sender Pointer to the sender object emitting the signal.
+     * @param sender Pointer to the sender SwObject emitting the signal.
      * @param signalName The name of the signal to connect.
      * @param func The lambda to execute when the signal is emitted.
      * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection).
@@ -663,13 +651,13 @@ public:
      * It uses pointer-to-member functions to explicitly define the signal and slot connections.
      * Note: This implementation is under development and may not work as expected in all cases.
      *
-     * @tparam Sender The type of the sender object emitting the signal.
-     * @tparam Receiver The type of the receiver object handling the signal.
+     * @tparam Sender The type of the sender SwObject emitting the signal.
+     * @tparam Receiver The type of the receiver SwObject handling the signal.
      * @tparam SignalArgs The argument types of the signal.
      * @tparam SlotArgs The argument types of the slot.
-     * @param sender Pointer to the sender object emitting the signal.
+     * @param sender Pointer to the sender SwObject emitting the signal.
      * @param signal The pointer-to-member function representing the signal.
-     * @param receiver Pointer to the receiver object handling the signal.
+     * @param receiver Pointer to the receiver SwObject handling the signal.
      * @param slot The pointer-to-member function representing the slot.
      * @param type Type of connection (e.g., DirectConnection, QueuedConnection, BlockingQueuedConnection).
      *             Default is DirectConnection.
@@ -699,14 +687,14 @@ public:
     }
 
     /**
-     * @brief Disconnects a specific slot from a signal of a sender object.
+     * @brief Disconnects a specific slot from a signal of a sender SwObject.
      *
      * Removes the connection between a signal emitted by the sender and a specific slot of the receiver.
      * If no slots remain connected to the signal, the signal is removed from the sender's connections.
      *
-     * @param sender Pointer to the sender object emitting the signal.
+     * @param sender Pointer to the sender SwObject emitting the signal.
      * @param signalName Name of the signal to disconnect from.
-     * @param receiver Pointer to the receiver object whose slot is being disconnected.
+     * @param receiver Pointer to the receiver SwObject whose slot is being disconnected.
      * @param slot The specific slot of the receiver to disconnect.
      */
     template<typename Sender, typename Receiver>
@@ -732,13 +720,13 @@ public:
     }
 
     /**
-     * @brief Disconnects all slots of a receiver from all signals of a sender object.
+     * @brief Disconnects all slots of a receiver from all signals of a sender SwObject.
      *
      * Iterates through all signals of the sender and removes any connections associated with the receiver.
      * If no slots remain connected to a signal, the signal is removed from the sender's connections.
      *
-     * @param sender Pointer to the sender object emitting the signals.
-     * @param receiver Pointer to the receiver object whose slots are being disconnected.
+     * @param sender Pointer to the sender SwObject emitting the signals.
+     * @param receiver Pointer to the receiver SwObject whose slots are being disconnected.
      */
     template<typename Sender, typename Receiver>
     static void disconnect(Sender* sender, Receiver* receiver) {
@@ -786,31 +774,31 @@ public:
     /**
      * @brief Retrieves the current sender of the signal.
      *
-     * Returns the pointer to the `Object` that emitted the signal. Useful in slot functions
-     * to determine which object triggered the signal.
+     * Returns the pointer to the `SwObject` that emitted the signal. Useful in slot functions
+     * to determine which SwObject triggered the signal.
      *
-     * @return Object* Pointer to the sender object, or `nullptr` if no sender is set.
+     * @return Object* Pointer to the sender SwObject, or `nullptr` if no sender is set.
      */
-    Object* sender() {
+    SwObject* sender() {
         return currentSender;
     }
 
     /**
      * @brief Sets the current sender of the signal.
      *
-     * This function assigns the sender object for the currently emitted signal.
-     * It is used internally when emitting signals to track the originating object.
+     * This function assigns the sender SwObject for the currently emitted signal.
+     * It is used internally when emitting signals to track the originating SwObject.
      *
-     * @param _sender Pointer to the `Object` that emits the signal.
+     * @param _sender Pointer to the `SwObject` that emits the signal.
      */
-    void setSender(Object* _sender) {
+    void setSender(SwObject* _sender) {
         currentSender = _sender;
     }
 
     /**
-     * @brief Disconnects all slots connected to this object.
+     * @brief Disconnects all slots connected to this SwObject.
      *
-     * This function clears all signal-slot connections associated with this object.
+     * This function clears all signal-slot connections associated with this SwObject.
      * It ensures that no slots remain connected to any of its signals.
      *
      * If any connections exist, they are removed, and a message is logged.
@@ -825,11 +813,11 @@ public:
     /**
      * @brief Disconnects all slots associated with a specific receiver.
      *
-     * This function iterates through all connections of this object and removes any
-     * slots that are associated with the provided receiver object.
+     * This function iterates through all connections of this SwObject and removes any
+     * slots that are associated with the provided receiver SwObject.
      *
-     * @tparam Receiver The type of the receiver object.
-     * @param receiver A pointer to the receiver object whose slots need to be disconnected.
+     * @tparam Receiver The type of the receiver SwObject.
+     * @param receiver A pointer to the receiver SwObject whose slots need to be disconnected.
      *
      * Logs a message indicating that all slots linked to the receiver have been disconnected.
      */
@@ -855,7 +843,7 @@ public:
      * property exists and if the provided value matches the expected type before setting it.
      *
      * @param propertyName The name of the property to be updated.
-     * @param value The new value to assign to the property, encapsulated in a SwAny object.
+     * @param value The new value to assign to the property, encapsulated in a SwAny SwObject.
      *
      * @note Logs a message if the property is not found or if the value type does not match the expected type.
      */
@@ -883,13 +871,13 @@ public:
     /**
      * @brief Retrieves the value of a specified property.
      *
-     * This function accesses a property by its name and returns its value encapsulated in a SwAny object.
+     * This function accesses a property by its name and returns its value encapsulated in a SwAny SwObject.
      * If the properties have not been initialized, it triggers their registration.
      * If the property exists, its getter function is called to obtain the value,
-     * which is then converted to a SwAny object.
+     * which is then converted to a SwAny SwObject.
      *
      * @param propertyName The name of the property to retrieve.
-     * @return SwAny The value of the property if found, or an empty SwAny object if the property does not exist.
+     * @return SwAny The value of the property if found, or an empty SwAny SwObject if the property does not exist.
      *
      * @note Logs a message if the property is not found.
      */
@@ -931,12 +919,12 @@ protected:
     /**
      * @brief Handles events triggered when a new parent is assigned.
      *
-     * This function is called whenever the object is assigned a new parent.
+     * This function is called whenever the SwObject is assigned a new parent.
      * It can be overridden to implement custom behavior for handling parent changes.
      *
-     * @param parent The new parent object assigned to this object.
+     * @param parent The new parent SwObject assigned to this SwObject.
      */
-    virtual void newParentEvent(Object* parent) { SW_UNUSED(parent) }
+    virtual void newParentEvent(SwObject* parent) { SW_UNUSED(parent) }
 
 
     /**
@@ -988,7 +976,7 @@ protected:
 
                 if (type == DirectConnection) {
                     if (slot->receiveur()) {
-                        static_cast<Object*>(slot->receiveur())->setSender(this);
+                        static_cast<SwObject*>(slot->receiveur())->setSender(this);
                     }
                     slot->invoke(slot->receiveur(), args...);
                 }
@@ -996,7 +984,7 @@ protected:
                     // Mettre en file d'attente pour un traitement ultérieur
                     SwCoreApplication::instance()->postEvent([this, slot, args...]() {
                         if (slot->receiveur()) {
-                            static_cast<Object*>(slot->receiveur())->setSender(this);
+                            static_cast<SwObject*>(slot->receiveur())->setSender(this);
                         }
                         slot->invoke(slot->receiveur(), args...);
                     });
@@ -1005,7 +993,7 @@ protected:
                     // Utiliser future pour bloquer jusqu'à ce que le slot soit exécuté
                     auto future = std::async(std::launch::async, [this, slot, args...]() {
                         if (slot->receiveur()) {
-                            static_cast<Object*>(slot->receiveur())->setSender(this);
+                            static_cast<SwObject*>(slot->receiveur())->setSender(this);
                         }
                         slot->invoke(slot->receiveur(), args...);
                     });
@@ -1038,14 +1026,12 @@ signals:
     DECLARE_SIGNAL(childAdded)
 
 private:
-    Object* m_parent = nullptr;
-    std::vector<Object*> children;
+    SwObject* m_parent = nullptr;
+    std::vector<SwObject*> children;
     SwString objectName;
     std::map<SwString, SwString> properties;
     std::map<SwString, std::vector<std::pair<void*, ConnectionType>>> connections;
-    Object* currentSender = nullptr;
-
-
+    SwObject* currentSender = nullptr;
 };
 
 
