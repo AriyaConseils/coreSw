@@ -19,5 +19,7 @@ add_subdirectory(exemples/06-DebugExemple)
 add_subdirectory(exemples/07-ServeurDebug)
 add_subdirectory(exemples/08-RegisterType)
 add_subdirectory(exemples/09-MultiRuntime)
+add_subdirectory(exemples/10-SwProcessExample)
+
 
 
