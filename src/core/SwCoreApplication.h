@@ -124,8 +124,8 @@ public:
      * @brief Executes the timer's callback and updates the last execution time.
      */
     void execute() {
-        callback();
         lastExecutionTime = std::chrono::steady_clock::now();
+        callback();
     }
 
     /**
@@ -934,20 +934,9 @@ protected:
             delete cbPtr;
             return;
         }
+        
+        safeRunningFiber(newFiber);
 
-        m_runningFiber = newFiber;
-        fiberStartTime = std::chrono::steady_clock::now();
-        SwitchToFiber(newFiber);
-        if(fireWatchDog)
-        {
-            std::lock_guard<std::mutex> lock(getReadyMutex());
-            fireWatchDog = false;
-            instance()->getReadyFibers().push(newFiber);
-        }
-
-        // Returned here after the fiber has finished or yielded again.
-        // Check if it has been yielded
-        deleteFiberIfNeeded(newFiber);
         // Calcul du temps occupé dans cette opération
         auto endBusy = std::chrono::steady_clock::now();
         auto busyElapsed = std::chrono::duration_cast<std::chrono::microseconds>(endBusy - startBusy).count();
@@ -999,23 +988,8 @@ protected:
                 // Exit this cycle; the fiber will be retried in the next processEvent() call.
                 break;
             }
-
             resumedThisCycle.insert(fiber);
-
-            if (fiber) {
-                // Resume the fiber
-                m_runningFiber = fiber;
-                SwitchToFiber(fiber);
-                if(fireWatchDog)
-                {
-                    std::lock_guard<std::mutex> lock(getReadyMutex());
-                    fireWatchDog = false;
-                    instance()->getReadyFibers().push(fiber);
-                }
-                // Back here after the fiber finishes or yields again
-                // Check if the fiber needs to be deleted
-                deleteFiberIfNeeded(fiber);
-            }
+            safeRunningFiber(fiber);
         }
         // Calcul du temps occupé dans cette opération
         auto endBusy = std::chrono::steady_clock::now();
@@ -1023,6 +997,24 @@ protected:
         busyElapsedIteration += (uint64_t)busyElapsed;
     }
 
+    void safeRunningFiber(LPVOID _fiber)
+    {
+        if (!_fiber) {
+            return;
+        }
+
+        m_runningFiber = _fiber;
+        SwitchToFiber(_fiber);
+        if(fireWatchDog)
+        {
+            std::lock_guard<std::mutex> lock(getReadyMutex());
+            fireWatchDog = false;
+            instance()->getReadyFibers().push(_fiber);
+        }
+        // Back here after the fiber finishes or yields again
+        // Check if the fiber needs to be deleted
+        deleteFiberIfNeeded(_fiber);
+    }
 
     /**
      * @brief Deletes a fiber if it is no longer in use.
@@ -1041,45 +1033,42 @@ protected:
      * @note The function ensures thread safety by using mutex locks when accessing the shared
      *       `s_yieldedFibers` and `s_readyFibers` data structures.
      * @note If the fiber is still in use, it is not deleted.
-     */
+     */    
     void deleteFiberIfNeeded(void* fiber) {
-        bool isYielded = false;
-        bool isReady = false;
-
         if(fiber == instance()->mainFiber){
             return;
         }
-        // Check if the fiber is in the yielded fibers map
-        {
-            std::lock_guard<std::mutex> lock(getYieldMutex());
-            for (auto &kv : getYieldedFibers()) {
-                if (kv.second == fiber) {
-                    isYielded = true;
-                    break;
-                }
-            }
-        }
 
-        // Check if the fiber is in the ready fibers queue
-        if (!isYielded) {
-            std::lock_guard<std::mutex> lock(getReadyMutex());
+        bool fiberYielded = isFiberYielded(fiber);
+        bool fiberReady = !fiberYielded && isFiberReady(fiber);
 
-            // Iterate through the ready fibers queue without modifying it
-            std::queue<LPVOID> temp = getReadyFibers();
-            while (!temp.empty()) {
-                LPVOID f = temp.front();
-                temp.pop();
-                if (f == fiber) {
-                    isReady = true;
-                    break;
-                }
-            }
-        }
-
-        if (!isYielded && !isReady) {
-            // If the fiber is neither yielded nor ready, delete it
+        if (!fiberYielded && !fiberReady) {
             DeleteFiber(fiber);
         }
+    }
+
+
+    bool isFiberYielded(LPVOID fiber) {
+        std::lock_guard<std::mutex> lock(getYieldMutex());
+        for (auto &kv : getYieldedFibers()) {
+            if (kv.second == fiber) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool isFiberReady(LPVOID fiber) {
+        std::lock_guard<std::mutex> lock(getReadyMutex());
+        std::queue<LPVOID> temp = getReadyFibers();
+        while (!temp.empty()) {
+            LPVOID f = temp.front();
+            temp.pop();
+            if (f == fiber) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
