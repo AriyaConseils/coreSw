@@ -26,12 +26,16 @@
 #include <sstream>
 #include <iomanip>
 #include <math.h>
+#include <chrono>
+
 class SwDateTime {
 public:
     // Constructeurs
-    SwDateTime() : time_(std::time(nullptr)) {} // Date/heure actuelle
+    SwDateTime()
+        : tp_(std::chrono::system_clock::now()) {} // Date/heure actuelle
 
-    SwDateTime(std::time_t time) : time_(time) {} // Constructeur avec std::time_t
+    SwDateTime(std::time_t time)
+        : tp_(std::chrono::system_clock::from_time_t(time)) {} // Constructeur avec std::time_t
 
     SwDateTime(int year, int month, int day, int hour = 0, int minute = 0, int second = 0) {
         setDateTime(year, month, day, hour, minute, second);
@@ -52,17 +56,29 @@ public:
     // Destructeur
     ~SwDateTime() = default;
 
-
     operator std::time_t() const {
-        return time_;
+        return std::chrono::system_clock::to_time_t(tp_);
     }
 
     operator std::time_t&() {
-        return time_;
+        // Cette conversion n'a pas trop de sens dans le contexte chrono,
+        // mais on va contourner en stockant un statique local.
+        static thread_local std::time_t temp = std::chrono::system_clock::to_time_t(tp_);
+        return temp;
     }
 
     operator const std::time_t&() const {
-        return time_;
+        static thread_local std::time_t temp = std::chrono::system_clock::to_time_t(tp_);
+        return temp;
+    }
+
+    static SwDateTime currentDateTime() {
+        return SwDateTime(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+    }
+
+    int msecsTo(const SwDateTime& other) const {
+        auto diff = other.tp_ - tp_;
+        return (int)std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
     }
 
     // Setter avec des champs spécifiques
@@ -84,12 +100,13 @@ public:
             throw std::runtime_error("Failed to convert to std::time_t");
         }
 
-        time_ = newTime;
+        // On crée un time_point correspondant
+        tp_ = std::chrono::system_clock::from_time_t(newTime);
     }
 
     // Conversion vers std::time_t
     std::time_t toTimeT() const {
-        return time_;
+        return std::chrono::system_clock::to_time_t(tp_);
     }
 
     // Accès aux composants
@@ -115,7 +132,7 @@ public:
 
     // Opérateurs de comparaison
     bool operator==(const SwDateTime& other) const {
-        return time_ == other.time_;
+        return tp_ == other.tp_;
     }
 
     bool operator!=(const SwDateTime& other) const {
@@ -123,24 +140,26 @@ public:
     }
 
     bool operator<(const SwDateTime& other) const {
-        return time_ < other.time_;
+        return tp_ < other.tp_;
     }
 
     bool operator<=(const SwDateTime& other) const {
-        return time_ <= other.time_;
+        return tp_ <= other.tp_;
     }
 
     bool operator>(const SwDateTime& other) const {
-        return time_ > other.time_;
+        return tp_ > other.tp_;
     }
 
     bool operator>=(const SwDateTime& other) const {
-        return time_ >= other.time_;
+        return tp_ >= other.tp_;
     }
 
     // Ajouter ou retirer des jours
     SwDateTime addDays(int days) const {
-        return SwDateTime(time_ + days * 24 * 60 * 60);
+        // 24h * 60 *60 = 86400 sec, on utilise chrono::hours
+        auto newTp = tp_ + std::chrono::hours(days * 24);
+        return SwDateTime(std::chrono::system_clock::to_time_t(newTp));
     }
 
     SwDateTime subtractDays(int days) const {
@@ -149,7 +168,8 @@ public:
 
     // Ajouter ou retirer des secondes
     SwDateTime addSeconds(int seconds) const {
-        return SwDateTime(time_ + seconds);
+        auto newTp = tp_ + std::chrono::seconds(seconds);
+        return SwDateTime(std::chrono::system_clock::to_time_t(newTp));
     }
 
     SwDateTime subtractSeconds(int seconds) const {
@@ -158,7 +178,8 @@ public:
 
     // Ajouter ou retirer des minutes
     SwDateTime addMinutes(int minutes) const {
-        return addSeconds(minutes * 60);
+        auto newTp = tp_ + std::chrono::minutes(minutes);
+        return SwDateTime(std::chrono::system_clock::to_time_t(newTp));
     }
 
     SwDateTime subtractMinutes(int minutes) const {
@@ -174,8 +195,16 @@ public:
             newMonth += 12;
             newYear -= 1;
         }
-        int day = (local.tm_mday < daysInMonth(newYear, newMonth + 1))?local.tm_mday : daysInMonth(newYear, newMonth + 1);
-        return SwDateTime(newYear, newMonth + 1, day, local.tm_hour, local.tm_min, local.tm_sec);
+
+        int dayToUse = local.tm_mday;
+        int dim = daysInMonth(newYear, newMonth + 1);
+        if (dayToUse > dim) {
+            dayToUse = dim;
+        }
+
+        // Recréer un SwDateTime avec ces données
+        SwDateTime temp(newYear, newMonth + 1, dayToUse, local.tm_hour, local.tm_min, local.tm_sec);
+        return temp;
     }
 
     SwDateTime subtractMonths(int months) const {
@@ -198,12 +227,10 @@ public:
             throw std::invalid_argument("Invalid month value");
         }
 
-        // Si le mois est février et que l'année est bissextile, renvoyer 29
         if (month == 2 && isLeapYear(year)) {
             return 29;
         }
 
-        // Sinon, renvoyer le nombre standard de jours
         return daysInMonths[month - 1];
     }
 
@@ -211,13 +238,14 @@ public:
     static bool isLeapYear(int year) {
         return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
     }
-private:
-    std::time_t time_; // Représentation interne en std::time_t
 
-    // Renvoie un std::tm correspondant au temps local
+private:
+    std::chrono::system_clock::time_point tp_;
+
     const std::tm& localTime() const {
         static thread_local std::tm timeInfo;
-        if (localtime_s(&timeInfo, &time_) != 0) {
+        std::time_t t = std::chrono::system_clock::to_time_t(tp_);
+        if (localtime_s(&timeInfo, &t) != 0) {
             throw std::runtime_error("Failed to convert to local time");
         }
         return timeInfo;

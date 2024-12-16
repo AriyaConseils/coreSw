@@ -134,7 +134,7 @@ public:
      *
      * @note This is a pure virtual method and must be implemented in derived classes.
      */
-    virtual SwString read(int64_t maxSize = 0) override = 0;
+    virtual SwString read(int64_t maxSize = 0) = 0;
 
     /**
      * @brief Writes data to the socket.
@@ -145,7 +145,7 @@ public:
      *
      * @note This is a pure virtual method and must be implemented in derived classes.
      */
-    virtual bool write(const SwString& data) override = 0;
+    virtual bool write(const SwString& data) = 0;
 
     /**
      * @brief Checks if the socket is currently open.

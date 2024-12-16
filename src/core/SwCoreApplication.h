@@ -276,7 +276,6 @@ public:
         }
     }
 
-
     double getLoadPercentage() const {
         if (totalTimeMicroseconds == 0) {
             return 0.0;

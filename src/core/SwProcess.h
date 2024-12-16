@@ -271,7 +271,7 @@ public:
      * @return A string containing the data read from the process's standard output.
      *         Returns an empty string if the standard output descriptor is unavailable.
      */
-    SwString read(int64_t maxSize = 0) override {
+    SwString read(int64_t maxSize = 0) {
         if (!stdoutDescriptor) return "";
         return stdoutDescriptor->read();
     }
@@ -298,7 +298,7 @@ public:
      *
      * @return `true` if the data was successfully written, `false` if the standard input descriptor is unavailable.
      */
-    bool write(const SwString& data) override {
+    bool write(const SwString& data) {
         if (!stdinDescriptor) return false;
         return stdinDescriptor->write(data);
     }
@@ -531,11 +531,9 @@ private slots:
      */
     void checkProcessStatus() {
         if (!processRunning) return;
-
         DWORD exitCode;
         if (GetExitCodeProcess(hProcess, &exitCode)) {
             if (exitCode != STILL_ACTIVE) {
-                std::cout << "Process terminated with exit code: " << exitCode << std::endl;
                 emit processTerminated(exitCode);
                 close();
             }
