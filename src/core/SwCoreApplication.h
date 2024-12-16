@@ -51,6 +51,7 @@
 #include <windows.h>
 #include "SwMap.h"
 #include "SwString.h"
+#include <thread>
 
 
 
@@ -210,6 +211,9 @@ public:
         enableHighPrecisionTimers();
         initFibers();
         SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+        // Sauvegarde du handle du thread principal
+        mainThreadHandle = GetCurrentThread();
+        mainThreadId = GetCurrentThreadId();
     }
 
     /**
@@ -227,6 +231,9 @@ public:
         parseArguments(argc, argv);
         initFibers();
         SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+        // Sauvegarde du handle du thread principal
+        mainThreadHandle = GetCurrentThread();
+        mainThreadId = GetCurrentThreadId();
     }
 
     /**
@@ -248,6 +255,53 @@ public:
         if(!_mainApp && create)
             _mainApp = new SwCoreApplication();
         return _mainApp;
+    }
+
+    void activeWatchDog() {
+        // Si le watchdog n'est pas déjà actif
+        if (!watchdogRunning) {
+            watchdogRunning = true;
+            watchdogThread = std::thread(&SwCoreApplication::watchdogLoop, this);
+        }
+    }
+
+    // Méthode pour désactiver le watchdog
+    void desactiveWatchDog() {
+        // Si le watchdog est actif
+        if (watchdogRunning) {
+            watchdogRunning = false;
+            if (watchdogThread.joinable()) {
+                watchdogThread.join();
+            }
+        }
+    }
+
+
+    double getLoadPercentage() const {
+        if (totalTimeMicroseconds == 0) {
+            return 0.0;
+        }
+        return 100.0 * (double)totalBusyTimeMicroseconds / (double)totalTimeMicroseconds;
+    }
+
+    double getLastSecondLoadPercentage() {
+        auto now = std::chrono::steady_clock::now();
+        auto oneSecondAgo = now - std::chrono::seconds(1);
+
+        // On supprime les mesures plus vieilles que 1 seconde
+        while (!measurements.empty() && measurements.front().timestamp < oneSecondAgo) {
+            measurements.pop_front();
+        }
+
+        uint64_t sumBusy = 0;
+        uint64_t sumTotal = 0;
+        for (auto &m : measurements) {
+            sumBusy += m.busyMicroseconds;
+            sumTotal += m.totalMicroseconds;
+        }
+
+        if (sumTotal == 0) return 0.0;
+        return 100.0 * (double)sumBusy / (double)sumTotal;
     }
 
     /**
@@ -327,22 +381,46 @@ public:
         auto lastTime = startTime;
 
         while (running) {
+            // Avant de traiter un nouvel événement, on remet à zéro le temps occupé de l'itération
+            busyElapsedIteration = 0;
+
             auto currentTime = std::chrono::steady_clock::now();
             int sleepDuration = processEvent();
+
             auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - lastTime).count();
-            int adjustedSleepDuration = (std::max)(0, sleepDuration - static_cast<int>(elapsed));
             lastTime = currentTime;
+
+            // On met à jour le temps total
+            totalTimeMicroseconds += (uint64_t)elapsed;
+            // On ajoute à totalBusyTimeMicroseconds le temps occupé de cette itération
+            totalBusyTimeMicroseconds += (uint64_t)busyElapsedIteration;
+
+            // On enregistre la mesure de cette itération
+            measurements.push_back({
+                currentTime,
+                (uint64_t)busyElapsedIteration,
+                (uint64_t)elapsed
+            });
+
+            // Nettoyage des mesures plus vieilles que 1 seconde
+            auto oneSecondAgo = currentTime - std::chrono::seconds(1);
+            while (!measurements.empty() && measurements.front().timestamp < oneSecondAgo) {
+                measurements.pop_front();
+            }
+
             auto totalElapsed = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - startTime).count();
             if (maxDurationMicroseconds != 0 && totalElapsed >= maxDurationMicroseconds) {
                 break;
             }
 
+            int adjustedSleepDuration = (std::max)(0, sleepDuration - (int)elapsed);
             if(adjustedSleepDuration > 1000){
                 std::this_thread::sleep_for(std::chrono::microseconds(adjustedSleepDuration / 2));
             }
         }
         return exitCode;
     }
+
 
     /**
      * @brief Processes a single event or manages timers, handling fibers as needed.
@@ -610,7 +688,67 @@ public:
     }
 
 protected:
+    static void __stdcall trampolineFunction() {
+        instance()->m_runningFiber = nullptr;
+        SwitchToFiber(instance()->mainFiber);
+        // Ne jamais revenir ici
+    }
 
+
+
+    void forceBackToMainFiber() {
+        HANDLE hMainThread = OpenThread(THREAD_ALL_ACCESS, FALSE, instance()->mainThreadId);
+        if (!hMainThread) {
+            std::cerr << "OpenThread failed" << std::endl;
+            return;
+        }
+
+        CONTEXT ctx;
+        ctx.ContextFlags = CONTEXT_FULL;
+        if (SuspendThread(hMainThread) == (DWORD)-1) {
+            std::cerr << "SuspendThread failed: " << GetLastError() << std::endl;
+            CloseHandle(hMainThread);
+            return;
+        }
+
+        if (!GetThreadContext(hMainThread, &ctx)) {
+            std::cerr << "GetThreadContext failed: " << GetLastError() << std::endl;
+            ResumeThread(hMainThread);
+            CloseHandle(hMainThread);
+            return;
+        }
+
+        // Assurez-vous que ctx.Rsp pointe vers une zone valide, souvent le contexte original contient déjà une valeur de Rsp
+        // On ne modifie que Rip ici par simplicité
+        ctx.Rip = (DWORD64)&SwCoreApplication::trampolineFunction;
+
+        if (!SetThreadContext(hMainThread, &ctx)) {
+            std::cerr << "SetThreadContext failed: " << GetLastError() << std::endl;
+        }
+
+        if (ResumeThread(hMainThread) == (DWORD)-1) {
+            std::cerr << "ResumeThread failed: " << GetLastError() << std::endl;
+        }
+
+        CloseHandle(hMainThread);
+    }
+
+
+    void watchdogLoop() {
+        using namespace std::chrono;
+        while (watchdogRunning && running) {
+            std::this_thread::sleep_for(milliseconds(5));
+            if (m_runningFiber) {
+                auto now = steady_clock::now();
+                auto elapsed = duration_cast<milliseconds>(now - fiberStartTime).count();
+                if (elapsed > 10 && !fireWatchDog) {
+                    // Fibre bloquante détectée !
+                    fireWatchDog = true;
+                    forceBackToMainFiber();
+                }
+            }
+        }
+    }
     /**
      * @brief Enables high-precision timers using the Windows multimedia timer.
      */
@@ -725,9 +863,9 @@ protected:
         // truly completes, preventing the risk of double deletes or accessing
         // deallocated memory if it had simply yielded instead of fully returning.
         delete callback;
-
+        instance()->m_runningFiber = nullptr;
         // Finally, return control to the main fiber.
-        SwitchToFiber(instance(false)->mainFiber);
+        SwitchToFiber(instance()->mainFiber);
     }
 
 
@@ -757,6 +895,7 @@ protected:
      *          yield or complete its execution without blocking other operations indefinitely.
      */
     void runEventInFiber(const std::function<void()>& event) {
+        auto startBusy = std::chrono::steady_clock::now();
         std::function<void()>* cbPtr = new std::function<void()>(event);
         LPVOID newFiber = CreateFiber(0, FiberProc, cbPtr);
         if (!newFiber) {
@@ -767,10 +906,22 @@ protected:
         }
 
         m_runningFiber = newFiber;
+        fiberStartTime = std::chrono::steady_clock::now();
         SwitchToFiber(newFiber);
+        if(fireWatchDog)
+        {
+            std::lock_guard<std::mutex> lock(s_readyMutex);
+            fireWatchDog = false;
+            instance()->s_readyFibers.push(newFiber);
+        }
+
         // Returned here after the fiber has finished or yielded again.
         // Check if it has been yielded
         deleteFiberIfNeeded(newFiber);
+        // Calcul du temps occupé dans cette opération
+        auto endBusy = std::chrono::steady_clock::now();
+        auto busyElapsed = std::chrono::duration_cast<std::chrono::microseconds>(endBusy - startBusy).count();
+        busyElapsedIteration += (uint64_t)busyElapsed;
     }
 
     /**
@@ -795,7 +946,7 @@ protected:
      */
     void resumeReadyFibers() {
         std::unordered_set<LPVOID> resumedThisCycle;
-
+        auto startBusy = std::chrono::steady_clock::now();
         while (true) {
             LPVOID fiber = nullptr;
             {
@@ -823,12 +974,23 @@ protected:
 
             if (fiber) {
                 // Resume the fiber
+                m_runningFiber = fiber;
                 SwitchToFiber(fiber);
+                if(fireWatchDog)
+                {
+                    std::lock_guard<std::mutex> lock(s_readyMutex);
+                    fireWatchDog = false;
+                    instance()->s_readyFibers.push(fiber);
+                }
                 // Back here after the fiber finishes or yields again
                 // Check if the fiber needs to be deleted
                 deleteFiberIfNeeded(fiber);
             }
         }
+        // Calcul du temps occupé dans cette opération
+        auto endBusy = std::chrono::steady_clock::now();
+        auto busyElapsed = std::chrono::duration_cast<std::chrono::microseconds>(endBusy - startBusy).count();
+        busyElapsedIteration += (uint64_t)busyElapsed;
     }
 
 
@@ -952,10 +1114,30 @@ protected:
 protected:
     bool running; ///< Indicates if the event loop is running.
     int exitCode; ///< Exit code of the application.
-
+    HANDLE mainThreadHandle;
+    DWORD mainThreadId;
+    std::thread watchdogThread;
+    std::atomic<bool> watchdogRunning{false};
+    std::chrono::steady_clock::time_point fiberStartTime;
+    std::atomic<bool>  fireWatchDog{false};
     std::queue<std::function<void()>> eventQueue; ///< Queue of events to process.
     std::mutex eventQueueMutex; ///< Mutex protecting access to the event queue.
     std::condition_variable cv; ///< Condition variable for event waiting.
+
+    struct IterationMeasurement {
+        std::chrono::steady_clock::time_point timestamp;
+        uint64_t busyMicroseconds;
+        uint64_t totalMicroseconds;
+    };
+    // Queue des mesures sur la dernière seconde environ
+    std::deque<IterationMeasurement> measurements;
+
+    uint64_t totalBusyTimeMicroseconds = 0;
+    uint64_t totalTimeMicroseconds = 0;
+
+    // Cette variable sera mise à jour dans runEventInFiber et resumeReadyFibers
+    // pour accumuler le temps occupé dans la fibre sur l'itération en cours.
+    uint64_t busyElapsedIteration = 0;
 
     int nextTimerId = 0; ///< Identifier for the next timer to be created.
     std::map<int, _T*> timers; ///< Map associating timer IDs with their respective _T objects.
@@ -1007,7 +1189,6 @@ static BOOL WINAPI ConsoleHandler(DWORD ctrlType) {
         return FALSE;
     }
 }
-
 // Declaration of static members
 std::mutex SwCoreApplication::s_yieldMutex;
 std::map<int, LPVOID> SwCoreApplication::s_yieldedFibers;

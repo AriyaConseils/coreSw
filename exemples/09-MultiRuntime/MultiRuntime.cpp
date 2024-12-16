@@ -7,8 +7,8 @@
 #define PID() GetCurrentProcessId()
 
 void task1() {
-    std::cout << "[Task1] Rapid task triggered every Loop. PID = " << PID() << std::endl;
-    SwEventLoop::swsleep(5000); // Pause de 5 secondes
+    Sleep(15);
+    std::cout << "LOAD % = " << SwCoreApplication::instance()->getLoadPercentage()<< std::endl;
 }
 
 // Tâche lente : exécutée toutes les 3 secondes
@@ -49,6 +49,6 @@ int main() {
     timer.start();
 
     std::cout << "[Main] Application started. Running event loop... PID = " << PID() << std::endl;
-
+    app.activeWatchDog();
     return app.exec();
 }
