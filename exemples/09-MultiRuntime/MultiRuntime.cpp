@@ -7,7 +7,7 @@
 #define PID() GetCurrentProcessId()
 
 void task1() {
-    Sleep(15);
+    SwEventLoop::swsleep(1500);
     std::cout << "LOAD % = " << SwCoreApplication::instance()->getLoadPercentage()<< std::endl;
 }
 
@@ -49,6 +49,6 @@ int main() {
     timer.start();
 
     std::cout << "[Main] Application started. Running event loop... PID = " << PID() << std::endl;
-    app.activeWatchDog();
+    // app.activeWatchDog();
     return app.exec();
 }

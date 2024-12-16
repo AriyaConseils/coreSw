@@ -551,8 +551,8 @@ public:
             return;
         }
         {
-            std::lock_guard<std::mutex> lock(s_readyMutex);
-            s_readyFibers.push(current);
+            std::lock_guard<std::mutex> lock(getReadyMutex());
+            getReadyFibers().push(current);
         }
 
         // Retour à la fibre principale
@@ -595,8 +595,8 @@ public:
         }
         // Store the current fiber in the yielded fibers map
         {
-            std::lock_guard<std::mutex> lock(s_yieldMutex);
-            s_yieldedFibers[id] = current;
+            std::lock_guard<std::mutex> lock(getYieldMutex());
+            getYieldedFibers()[id] = current;
         }
 
         // Switch execution back to the main fiber
@@ -636,17 +636,17 @@ public:
     static void unYieldFiber(int id) {
         LPVOID fiber = nullptr;
         {
-            std::lock_guard<std::mutex> lock(s_yieldMutex);
-            auto it = s_yieldedFibers.find(id);
-            if (it != s_yieldedFibers.end()) {
+            std::lock_guard<std::mutex> lock(getYieldMutex());
+            auto it = getYieldedFibers().find(id);
+            if (it != getYieldedFibers().end()) {
                 fiber = it->second;
-                s_yieldedFibers.erase(it);
+                getYieldedFibers().erase(it);
             }
         }
 
         if (fiber) {
-            std::lock_guard<std::mutex> lock(s_readyMutex);
-            s_readyFibers.push(fiber);
+            std::lock_guard<std::mutex> lock(getReadyMutex());
+            getReadyFibers().push(fiber);
         }
     }
 
@@ -688,6 +688,27 @@ public:
     }
 
 protected:
+
+    static std::mutex& getYieldMutex() {
+         static std::mutex s_yieldMutex;
+         return s_yieldMutex;
+     }
+
+     static std::map<int, LPVOID>& getYieldedFibers() {
+         static std::map<int, LPVOID> s_yieldedFibers;
+         return s_yieldedFibers;
+     }
+
+     static std::mutex& getReadyMutex() {
+         static std::mutex s_readyMutex;
+         return s_readyMutex;
+     }
+
+     static std::queue<LPVOID>& getReadyFibers() {
+         static std::queue<LPVOID> s_readyFibers;
+         return s_readyFibers;
+     }
+
     static void __stdcall trampolineFunction() {
         instance()->m_runningFiber = nullptr;
         SwitchToFiber(instance()->mainFiber);
@@ -720,7 +741,16 @@ protected:
 
         // Assurez-vous que ctx.Rsp pointe vers une zone valide, souvent le contexte original contient déjà une valeur de Rsp
         // On ne modifie que Rip ici par simplicité
-        ctx.Rip = (DWORD64)&SwCoreApplication::trampolineFunction;
+        #if defined(_M_X64) || defined(_WIN64)
+            ctx.Rip = (DWORD64)&SwCoreApplication::trampolineFunction;
+        #elif defined(_M_IX86)
+            ctx.Eip = (DWORD)&SwCoreApplication::trampolineFunction;
+        #else
+            // Ajouter la gestion d'une autre architecture si besoin 
+            // ou au moins un commentaire pour savoir qu'on ne supporte pas
+            // cette architecture par exemple:
+            #error "Architecture non supportée pour la modification du contexte"
+        #endif
 
         if (!SetThreadContext(hMainThread, &ctx)) {
             std::cerr << "SetThreadContext failed: " << GetLastError() << std::endl;
@@ -910,9 +940,9 @@ protected:
         SwitchToFiber(newFiber);
         if(fireWatchDog)
         {
-            std::lock_guard<std::mutex> lock(s_readyMutex);
+            std::lock_guard<std::mutex> lock(getReadyMutex());
             fireWatchDog = false;
-            instance()->s_readyFibers.push(newFiber);
+            instance()->getReadyFibers().push(newFiber);
         }
 
         // Returned here after the fiber has finished or yielded again.
@@ -950,10 +980,10 @@ protected:
         while (true) {
             LPVOID fiber = nullptr;
             {
-                std::lock_guard<std::mutex> lock(s_readyMutex);
-                if (!s_readyFibers.empty()) {
-                    fiber = s_readyFibers.front();
-                    s_readyFibers.pop();
+                std::lock_guard<std::mutex> lock(getReadyMutex());
+                if (!getReadyFibers().empty()) {
+                    fiber = getReadyFibers().front();
+                    getReadyFibers().pop();
                 } else {
                     break; // No more fibers to resume
                 }
@@ -963,8 +993,8 @@ protected:
             if (resumedThisCycle.find(fiber) != resumedThisCycle.end()) {
                 // Fiber has already been executed this cycle, requeue it for later
                 {
-                    std::lock_guard<std::mutex> lock(s_readyMutex);
-                    s_readyFibers.push(fiber);
+                    std::lock_guard<std::mutex> lock(getReadyMutex());
+                    getReadyFibers().push(fiber);
                 }
                 // Exit this cycle; the fiber will be retried in the next processEvent() call.
                 break;
@@ -978,9 +1008,9 @@ protected:
                 SwitchToFiber(fiber);
                 if(fireWatchDog)
                 {
-                    std::lock_guard<std::mutex> lock(s_readyMutex);
+                    std::lock_guard<std::mutex> lock(getReadyMutex());
                     fireWatchDog = false;
-                    instance()->s_readyFibers.push(fiber);
+                    instance()->getReadyFibers().push(fiber);
                 }
                 // Back here after the fiber finishes or yields again
                 // Check if the fiber needs to be deleted
@@ -1016,10 +1046,13 @@ protected:
         bool isYielded = false;
         bool isReady = false;
 
+        if(fiber == instance()->mainFiber){
+            return;
+        }
         // Check if the fiber is in the yielded fibers map
         {
-            std::lock_guard<std::mutex> lock(s_yieldMutex);
-            for (auto &kv : s_yieldedFibers) {
+            std::lock_guard<std::mutex> lock(getYieldMutex());
+            for (auto &kv : getYieldedFibers()) {
                 if (kv.second == fiber) {
                     isYielded = true;
                     break;
@@ -1029,10 +1062,10 @@ protected:
 
         // Check if the fiber is in the ready fibers queue
         if (!isYielded) {
-            std::lock_guard<std::mutex> lock(s_readyMutex);
+            std::lock_guard<std::mutex> lock(getReadyMutex());
 
             // Iterate through the ready fibers queue without modifying it
-            std::queue<LPVOID> temp = s_readyFibers;
+            std::queue<LPVOID> temp = getReadyFibers();
             while (!temp.empty()) {
                 LPVOID f = temp.front();
                 temp.pop();
@@ -1116,10 +1149,12 @@ protected:
     int exitCode; ///< Exit code of the application.
     HANDLE mainThreadHandle;
     DWORD mainThreadId;
+
     std::thread watchdogThread;
-    std::atomic<bool> watchdogRunning{false};
+    bool watchdogRunning = false;
+    bool  fireWatchDog = false;
     std::chrono::steady_clock::time_point fiberStartTime;
-    std::atomic<bool>  fireWatchDog{false};
+
     std::queue<std::function<void()>> eventQueue; ///< Queue of events to process.
     std::mutex eventQueueMutex; ///< Mutex protecting access to the event queue.
     std::condition_variable cv; ///< Condition variable for event waiting.
@@ -1145,12 +1180,6 @@ protected:
 
     LPVOID m_runningFiber = nullptr; ///< Pointer to the currently running fiber.
     LPVOID mainFiber = nullptr; ///< Pointer to the main fiber.
-
-    // Static members for managing yield/unYield
-    static std::mutex s_yieldMutex; ///< Mutex protecting the s_yieldedFibers map.
-    static std::map<int, LPVOID> s_yieldedFibers; ///< Map of yielded fibers indexed by ID.
-    static std::mutex s_readyMutex; ///< Mutex protecting the s_readyFibers queue.
-    static std::queue<LPVOID> s_readyFibers; ///< Queue of fibers ready to be resumed.
 };
 
 /**
@@ -1180,17 +1209,12 @@ static BOOL WINAPI ConsoleHandler(DWORD ctrlType) {
         SwCoreApplication* app = SwCoreApplication::instance(false);
         if(app) {
             // Appeler quit pour stopper la boucle d'événements proprement
-            app->quit();
+            //app->quit();
         }
         // On retourne TRUE pour indiquer qu'on a géré l'événement
-        return TRUE;
+        return FALSE;
     }
     default:
         return FALSE;
     }
 }
-// Declaration of static members
-std::mutex SwCoreApplication::s_yieldMutex;
-std::map<int, LPVOID> SwCoreApplication::s_yieldedFibers;
-std::mutex SwCoreApplication::s_readyMutex;
-std::queue<LPVOID> SwCoreApplication::s_readyFibers;

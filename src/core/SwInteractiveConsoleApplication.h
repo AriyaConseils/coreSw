@@ -27,10 +27,86 @@
 #include <SwList.h>
 #include <SwMap.h>
 #include <SwTimer.h>
-#include <iostream>
 #include <functional>
 #include <sstream>
 #include <string>
+#include <windows.h>
+#include <iostream>
+
+
+class NonBlockingReader {
+public:
+    NonBlockingReader() {
+        hStdin = GetStdHandle(STD_INPUT_HANDLE);
+        if (hStdin == INVALID_HANDLE_VALUE) {
+            std::cerr << "Failed to get STD_INPUT_HANDLE\n";
+        }
+        DWORD mode;
+        GetConsoleMode(hStdin, &mode);
+        // Désactiver LINE_INPUT, activer la lecture immédiate
+        // Désactiver ECHO_INPUT pour gérer l'écho manuellement
+        // ENABLE_PROCESSED_INPUT permet toujours l'interprétation de Ctrl-C etc.
+        SetConsoleMode(hStdin, (mode & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT)) | ENABLE_PROCESSED_INPUT);
+    }
+
+    std::string readLineNonBlocking() {
+        DWORD numEvents = 0;
+        if (!GetNumberOfConsoleInputEvents(hStdin, &numEvents)) {
+            return std::string();
+        }
+
+        if (numEvents == 0) {
+            // Aucun événement
+            return std::string();
+        }
+
+        INPUT_RECORD ir[128];
+        DWORD eventsPeeked = 0;
+
+        if (!PeekConsoleInput(hStdin, ir, 128, &eventsPeeked) || eventsPeeked == 0) {
+            return std::string();
+        }
+
+        DWORD eventsRead = 0;
+        if (!ReadConsoleInput(hStdin, ir, eventsPeeked, &eventsRead)) {
+            return std::string();
+        }
+
+        for (DWORD i = 0; i < eventsRead; ++i) {
+            if (ir[i].EventType == KEY_EVENT && ir[i].Event.KeyEvent.bKeyDown) {
+                KEY_EVENT_RECORD ker = ir[i].Event.KeyEvent;
+                WCHAR ch = ker.uChar.UnicodeChar;
+
+                // Gérer les touches spéciales (Entrée, Backspace)
+                if (ch == '\r') {
+                    // Entrée: retourner la ligne actuelle
+                    std::cout << "\n";
+                    std::string line = m_buffer;
+                    m_buffer.clear();
+                    return line;
+                } else if (ker.wVirtualKeyCode == VK_BACK) {
+                    // Backspace
+                    if (!m_buffer.empty()) {
+                        m_buffer.pop_back();
+                        // Effacer le dernier caractère à l'écran
+                        std::cout << "\b \b" << std::flush;
+                    }
+                } else if (ch >= 0x20 && ch != 0x7F) {
+                    // Caractère imprimable
+                    m_buffer.push_back((char)ch);
+                    std::cout << (char)ch << std::flush; // Echo manuel du caractère
+                }
+                // Sinon, ignorer les autres touches (flèches, Ctrl, etc.)
+            }
+        }
+
+        return std::string();
+    }
+
+private:
+    HANDLE hStdin;
+    std::string m_buffer;
+};
 
 
 
@@ -78,7 +154,10 @@ public:
      * @param config Reference to the JSON document to be explored and possibly modified.
      */
     SwInteractiveConsoleApplication(SwJsonDocument &config)
-        : m_config(config), m_timer(), m_currentPath(""), m_singleLineMode(false)
+        : m_config(config)
+        , m_timer()
+        , m_currentPath("")
+        , m_singleLineMode(false)
     {
         // Check if root is a valid object
         SwJsonValue &rootNode = m_config.find("", true);
@@ -86,10 +165,12 @@ public:
             rootNode = SwJsonObject();
         }
 
-        // Set timer to poll input every 100ms
+
         m_timer.setInterval(100);
         connect(&m_timer, SIGNAL(timeout), this, &SwInteractiveConsoleApplication::pollInput);
         m_timer.start();
+
+
 
         registerNativeCommands();
         printPrompt();
@@ -205,8 +286,8 @@ private:
      * If single-line mode is active, the screen is cleared and the prompt is repositioned before and after processing.
      */
     void pollInput() {
-        std::string line;
-        if (std::getline(std::cin, line)) {
+        std::string line = m_nonBlockingReader.readLineNonBlocking();
+        if (line != "") {
               if (m_singleLineMode) {
                 // In single line mode:
                 // 1. Clear screen
@@ -482,4 +563,5 @@ private:
     SwTimer m_timer;                                             ///< Internal timer for polling user input.
     SwString m_currentPath;                                      ///< Current path in the JSON hierarchy.
     bool m_singleLineMode;                                       ///< Indicates whether single-line mode is active.
+    NonBlockingReader m_nonBlockingReader;
 };
